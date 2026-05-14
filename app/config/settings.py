@@ -1,0 +1,17 @@
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+
+API_KEY = os.getenv("API_KEY")
+TRAVELLER_API_URL = os.getenv("TRAVELER_API_URL")
+
+TRAVELLER_MANAGEMENT_API_URL = os.getenv("TRAVELLER_MANAGEMENT")
+
+
+# --- Logistics 
+OPENWEATHER_API_KEY= os.getenv("OPENWEATHER_API_KEY")
+GOOGLE_MAPS_API_KEY= os.getenv("GOOGLE_MAPS_API_KEY")
+OPENWEATHER_BASE_URL= os.getenv("OPENWEATHER_BASE_URL")
+GOOGLE_MAPS_BASE_URL= os.getenv("GOOGLE_MAPS_BASE_URL")
