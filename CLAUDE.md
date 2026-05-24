@@ -127,7 +127,7 @@ Entrée Utilisateur
                                    ▼
                           [context_merge] → [clarification_checker]
                                    │
-                          [semantic_node] → [availability_checker]  PHASE 2 : ENRICHISSEMENT
+                          [semantic_node] → [availability_checker]  PHASE 2 : ROUTAGE CONDITIONNEL + SEMANTIC
                                    │
                            [orchestrator]                            PHASE 3 : ORCHESTRATION
                                    │ (fan-out selon intent)

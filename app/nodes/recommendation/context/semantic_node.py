@@ -33,7 +33,7 @@ import re
 class SemanticAgentNode(BaseNode):
 
     CAMEL_CASE_PATTERN = re.compile(
-        r"^[a-z][a-zA-Z0-9]*$"
+        r"^[a-zA-Z0-9][a-zA-Z0-9]*$"
     )
 
     # =========================================================
@@ -201,6 +201,7 @@ class SemanticAgentNode(BaseNode):
         "season",
         "pace",
 
+        "tunis",
         "mahdia",
         "elJam",
         "monastir",
@@ -404,12 +405,10 @@ class SemanticAgentNode(BaseNode):
 
         # BUILD PROMPT
 
-        prompt = SEMANTIC_SYSTEM_PROMPT.replace(
-            "{user_message}", user_message
-        ).replace(
-            "{merged_context}", json.dumps(merged_data)
-        ).replace(
-            "{weather_context}", json.dumps(weather_data)
+        prompt = SEMANTIC_SYSTEM_PROMPT.format(
+            user_message=user_message,
+            merged_context=json.dumps(merged_data, ensure_ascii=False),
+            weather_context=json.dumps(weather_data, ensure_ascii=False),
         )
 
         
@@ -538,15 +537,10 @@ class SemanticAgentNode(BaseNode):
         # =====================================================
 
         return {
-
             "semantic_query": semantic_query,
-
             "global_keywords": global_keywords,
-
             "contextual_keywords": contextual_keywords,
-
             "semantic_metadata": metadata,
-
             "semantic_cache_key": cache_key,
         }
 
@@ -567,7 +561,9 @@ class SemanticAgentNode(BaseNode):
         )
 
         if len(query) > 50:
-            query = query[:50]
+            truncated = query[:50]
+            last_space = truncated.rfind(" ")
+            query = truncated[:last_space] if last_space > 0 else truncated
 
         return query if query else None
 
@@ -618,10 +614,12 @@ class SemanticAgentNode(BaseNode):
 
                 continue
 
-            # allowed pool validation
+            # allowed pool validation (case-insensitive)
             if allowed and allowed != "ALL":
 
-                if keyword not in allowed:
+                allowed_lower = {k.lower() for k in allowed}
+
+                if keyword.lower() not in allowed_lower:
 
                     self.logger.warning(
                         f"Keyword '{keyword}' "

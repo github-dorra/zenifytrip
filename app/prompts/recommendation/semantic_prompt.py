@@ -101,11 +101,19 @@ Rule 5: CONDITIONAL INFERENCE
 
 Rule 6: GOOGLE SEARCH COMPATIBLE QUERY (CRITICAL)
 ├─ semantic_query MUST be optimized for Google search engine
-├─ FORMAT STRICT:
-│   [destination] + [intent keyword] + [contextual_keywords]+ [global_keywords]
-├─ MUST be short, keyword-based, not a sentence
-├─ NO grammatical structure
-├─ NO filler words ("a", "the", "for", "best", etc. except if necessary)
+├─ USE natural language words only — NO camelCase, NO code-style terms
+│   ✗ WRONG: "sousse restaurant budgetFriendly localCuisine"
+│   ✓ CORRECT: "sousse cheap local restaurant street food"
+│   ✗ WRONG: "paris flight businessClass morningFlight"
+│   ✓ CORRECT: "paris flight business class morning tunis"
+├─ FORMAT: [origin/destination] + [intent in plain words] + [key context]
+├─ Short, natural, like a human typing into Google
+├─ NO filler words ("a", "the", "for") unless necessary
+├─ For flights: include BOTH origin AND destination cities
+
+Rule 7: ORIGIN IN CONTEXTUAL KEYWORDS (FLIGHTS)
+├─ For flight_recommendation: if origin city is known → add it to contextual_keywords
+│   Example: origin=tunis → add "tunis" to contextual_keywords
 
 
 
@@ -149,7 +157,7 @@ INFO DOMAIN (travel_question):
   culturalInfo, safetyInfo, transportInfo, accommodationInfo
  
 UNIVERSAL CONTEXTUAL KEYWORDS (Any intent):
-  Destinations: mahdia El jam, monastir, Djerba, Béja, Sousse, etc.
+  Destinations: tunis, mahdia, El jam, monastir, Djerba, Béja, Sousse, etc.
   Duration: 1day, 2days, 3days, 5days, 7days, 14days
   Budget: budgetFriendly, mediumBudget, luxuryBudget
   Weather: sunny, rainy, cloudy, hot, cold
@@ -299,4 +307,16 @@ CRITICAL REMINDERS
 ├─ NO sentences, NO prose, NO <think> tags
 └─ Invalid JSON = rejection
 
+================================================================================
+INPUTS
+================================================================================
+
+USER MESSAGE:
+{user_message}
+
+CONTEXT:
+{merged_context}
+
+WEATHER:
+{weather_context}
 """

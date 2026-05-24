@@ -49,13 +49,10 @@ class SemanticMetadata(BaseModel):
 
 class SemanticOutput(BaseModel):
     semantic_query: Optional[str] = Field(default=None, max_length=50)
-
     global_keywords: List[str] = Field(default_factory=list)
     contextual_keywords: List[str] = Field(default_factory=list)
-
     metadata: SemanticMetadata = Field(default_factory=SemanticMetadata)
-
-    # ---------------- VALIDATION ----------------
+    semantic_cache_key: Optional[str] = None
 
     @field_validator("global_keywords", "contextual_keywords", mode="before")
     @classmethod
@@ -85,56 +82,7 @@ class SemanticOutput(BaseModel):
     @field_validator("global_keywords", "contextual_keywords", mode="after")
     @classmethod
     def normalize_keywords(cls, values):
-        normalized = []
-        for v in values:
-            if isinstance(v, str):
-                v = v.strip()
-                if v:
-                    normalized.append(v)
-        return normalized
-
-
-
-class SemanticStateUpdate(BaseModel):
-    semantic_query: Optional[str] = Field(default=None, max_length=50)
-
-    semantic_keywords: List[str] = Field(default_factory=list)
-    semantic_tags: List[str] = Field(default_factory=list)
-
-    semantic_metadata: SemanticMetadata = Field(default_factory=SemanticMetadata)
-
-    semantic_cache_key: Optional[str] = None
-
-    # ---------------- VALIDATION ----------------
-
-    @field_validator("semantic_keywords", "semantic_tags", mode="before")
-    @classmethod
-    def ensure_list(cls, v):
-        if v is None:
-            return []
-        if isinstance(v, str):
-            return [v]
-        return v
-
-    @field_validator("semantic_keywords", "semantic_tags", mode="after")
-    @classmethod
-    def remove_duplicates(cls, values):
-        seen = set()
-        unique = []
-        for v in values:
-            if v not in seen:
-                unique.append(v)
-                seen.add(v)
-        return unique
-
-    @field_validator("semantic_keywords", "semantic_tags", mode="after")
-    @classmethod
-    def validate_camel_case(cls, values):
-        pattern = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
-        for v in values:
-            if not pattern.match(v):
-                raise ValueError(f"Invalid keyword format: {v}")
-        return values
+        return [v.strip() for v in values if isinstance(v, str) and v.strip()]
 
 
 # ========================

@@ -61,16 +61,18 @@ def call_ollama_llm(
     if not OLLAMA_API_KEY:
         raise ValueError("OLLAMA_API_KEY manquante dans le fichier .env")
     
-    response = ollama_client.chat(
-        model=model,
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        options={
+    kwargs = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
-        }
-    )
+        },
+    }
+    if response_format == "json":
+        kwargs["format"] = "json"
+
+    response = ollama_client.chat(**kwargs)
     
     return {
         "provider": "ollama",

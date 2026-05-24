@@ -50,9 +50,11 @@ class GraphState(TypedDict):
 
     # Context - added later
     user_profile: Dict[str, Any]
-    semantic_keywords: List[str]
-    semantic_tags: List[str]
-    semantic_query: str
+    global_keywords: List[str]
+    contextual_keywords: List[str]
+    semantic_query: Optional[str]
+    semantic_metadata: Optional[Dict[str, Any]]
+    semantic_cache_key: Optional[str]
     weather: Dict[str, Any]
     
     # Recommendation - added later
@@ -136,9 +138,11 @@ def build_initial_state(
 
         
         # semantic
-        "semantic_keywords": [],
-        "semantic_tags": [],
+        "global_keywords": [],
+        "contextual_keywords": [],
         "semantic_query": None,
+        "semantic_metadata": {},
+        "semantic_cache_key": None,
         "weather": {},
 
         "execution_plan": None,
