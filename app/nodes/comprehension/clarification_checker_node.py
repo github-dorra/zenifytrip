@@ -31,6 +31,7 @@ class ClarificationCheckerNode(BaseNode):
         context = state.get("merged_context") or {}
         primary_intent = context.get("primary_intent")
         action_type = context.get("action_type")
+        user_type = state.get("user_type", "native")
 
         # =========================
         # 1. SAFE MISSING DETECTION
@@ -84,6 +85,11 @@ class ClarificationCheckerNode(BaseNode):
         else:
             mode = "precise_plan"
             confidence = "high"
+
+        # USER RÉEL ne descend jamais sous semi_exploratory
+        if user_type == "real" and mode == "exploratory":
+            mode = "semi_exploratory"
+            confidence = "medium"
 
         next_action = "ask_clarification" if blocking_fields else "continue"
 

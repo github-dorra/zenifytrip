@@ -14,10 +14,10 @@ def get_traveller_id_by_userID(user_id: str):
     if not user_id:
         return None
 
-    cached_traveller_id = cache.get(f"traveller_id:{user_id}")
+    cached_travellerId = cache.get(f"travellerId:{user_id}")
 
-    if cached_traveller_id:
-        return cached_traveller_id
+    if cached_travellerId:
+        return cached_travellerId
 
     try:
         response = requests.get(
@@ -31,16 +31,16 @@ def get_traveller_id_by_userID(user_id: str):
 
         data = response.json()
 
-        traveller_id = data.get("traveller_id")
+        travellerId = data.get("id")
 
-        if traveller_id:
+        if travellerId:
             cache.set(
-                f"traveller_id:{user_id}",
-                traveller_id,
+                f"travellerId:{user_id}",
+                travellerId,
                 ttl_seconds=86400
             )
 
-        return traveller_id
+        return travellerId
 
     except requests.RequestException as e:
         print(f"[BootstrapSession] Error: {e}")
@@ -52,17 +52,22 @@ def bootstrap_session(state: GraphState):
     user_id = state.get("user_id")
 
     if not user_id:
-        state.setdefault("errors", []).append("Missing user_id")
-        return state
+        return {"errors": [{"node": "session_bootstrap", "error": "Missing user_id"}]}
 
-    traveller_id = state.get("traveller_id")
+    travellerId = state.get("travellerId")
 
-    if not traveller_id:
+    if not travellerId:
+        travellerId = get_traveller_id_by_userID(user_id)
 
-        traveller_id = get_traveller_id_by_userID(user_id)
+    if travellerId:
+        user_type = "real"
+        suggestion_mode = "precise_plan"
+    else:
+        user_type = "native"
+        suggestion_mode = "exploratory"
 
-        state["traveller_id"] = traveller_id
-
-    state["is_authenticated"] = True
-
-    return state
+    return {
+        "travellerId": travellerId,
+        "user_type": user_type,
+        "suggestion_mode": suggestion_mode,
+    }

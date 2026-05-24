@@ -15,14 +15,14 @@ class ProfileLoaderNode(BaseNode):
         
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
 
-        traveller_id = state.get("traveller_id")
+        travellerId = state.get("travellerId")
 
-        if not traveller_id:
+        if not travellerId:
             return {
                 "profile_data": {}
             }
 
-        traveller_data = ProfileService.get_traveller_profile(traveller_id)
+        traveller_data = ProfileService.get_traveller_profile(travellerId)
 
         if not traveller_data:
             return {
@@ -44,13 +44,8 @@ class ProfileLoaderNode(BaseNode):
         outbound_flight = safe_get(traveller_data, "outboundFlight", {})
         return_flight = safe_get(traveller_data, "returnFlight", {})
 
-        origin = safe_get(
-            safe_get(outbound_flight, "takeoffAirport", {})
-        )
-
-        destination = safe_get(
-            safe_get(outbound_flight, "landingAirport", {})
-        )
+        origin = safe_get(safe_get(outbound_flight, "takeoffAirport", {}), "name")
+        destination = safe_get(safe_get(outbound_flight, "landingAirport", {}), "name")
 
         # -----------------------------
         # Accommodation

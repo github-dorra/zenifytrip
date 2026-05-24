@@ -1,5 +1,4 @@
 import requests
-import httpx
 from typing import Optional, Dict, Any
 from app.config.settings import TRAVELLER_MANAGEMENT_API_URL, API_KEY
 
@@ -7,7 +6,7 @@ from app.config.settings import TRAVELLER_MANAGEMENT_API_URL, API_KEY
 class ProfileService:
 
     @staticmethod
-    async def get_traveller_profile(traveller_id: str) -> Optional[Dict[str, Any]]:
+    def get_traveller_profile(traveller_id: str) -> Optional[Dict[str, Any]]:
         if not traveller_id:
             return None
 
@@ -17,10 +16,8 @@ class ProfileService:
         }
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers, timeout=30)
-                response.raise_for_status()
-
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
             return response.json()
 
         except Exception as e:

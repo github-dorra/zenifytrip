@@ -95,10 +95,24 @@ class ResponseAgentOutput(BaseModel):
     # VALIDATORS
     # =====================================================
 
+    @field_validator("tone", mode="before")
+    @classmethod
+    def normalize_tone(cls, v):
+        allowed = {"friendly", "professional", "playful", "empathetic"}
+        return v if v in allowed else "friendly"
+
+    @field_validator("response_mode", mode="before")
+    @classmethod
+    def normalize_response_mode(cls, v):
+        mapping = {"information": "informative", "info": "informative"}
+        allowed = {"greeting", "clarification", "guidance", "informative", "recommendation", "fallback"}
+        if v in mapping:
+            return mapping[v]
+        return v if v in allowed else "fallback"
+
     @field_validator("confidence")
     @classmethod
     def clamp_confidence(cls, v):
-
         try:
             return max(0.0, min(float(v), 1.0))
         except Exception:

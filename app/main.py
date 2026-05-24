@@ -9,7 +9,7 @@ def main():
     state = {
         "user_id": "2720b441-6e48-464f-880b-71dd2d4cdca5",
         "session_id": str(uuid.uuid4()),
-        "traveller_id":"",
+        "travellerId":"",
         "locale": "fr",
         "user_message": "",
         "conversation_history": [],
@@ -27,7 +27,7 @@ def main():
 
             start = time.time()
             result = graph.invoke(state)
-            print("\nTraveller ID:", result.get("traveller_id"))
+            print("\nTraveller ID:", result.get("travellerId"))
             duration = time.time() - start
     
 
@@ -40,7 +40,7 @@ def main():
             print("Duration       :", round(duration, 2), "s")
 
             # Affichage contraintes extraites
-            constraints = result.get("constraints", {})
+            constraints = result.get("intent_result", {}).get("constraints", {})
             print("\nConstraints:")
             print(json.dumps(constraints, indent=2, ensure_ascii=False))
             

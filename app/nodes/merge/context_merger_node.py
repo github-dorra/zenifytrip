@@ -1,6 +1,7 @@
 """
 this node is used to merge profile data with intent fieds extractor to enrichie the context 
 """
+import re
 from typing import Dict, Any
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from datetime import datetime, timedelta
@@ -47,14 +48,16 @@ class ContextMergerNode(BaseNode):
         # TRAVELERS
         # -----------------------------
         merged["travelers"] = constraints.get("travelers") or (
-            1 + traveller_profile.get("child_count", 0) + traveller_profile.get("baby_count", 0)
+            1 + (traveller_profile.get("child_count") or 0) + (traveller_profile.get("baby_count") or 0)
         )
 
         # -----------------------------
         # BUDGET
         # -----------------------------
         if constraints.get("budget_level") is None:
-            hotel_stars = profile_travel.get("hotel_stars", 0)
+            raw_stars = profile_travel.get("hotel_stars")
+            match = re.search(r'\d+', str(raw_stars)) if raw_stars is not None else None
+            hotel_stars = int(match.group()) if match else 0
             merged["budget_level"] = (
                 "luxury" if hotel_stars >= 5 else
                 "premium" if hotel_stars >= 4 else
@@ -66,8 +69,9 @@ class ContextMergerNode(BaseNode):
         # -----------------------------
         # INTERESTS (SAFE MERGE)
         # -----------------------------
-        tags = traveller_profile.get("tags", [])
-        traveller_tags = traveller_profile.get("traveller_tags", [])
+        tags_data = profile_data.get("tags", {}) or {}
+        tags = tags_data.get("tags") or []
+        traveller_tags = tags_data.get("travellerTags") or []
 
         if isinstance(tags, str):
             tags = tags.split(",")
@@ -99,8 +103,8 @@ class ContextMergerNode(BaseNode):
         # FAMILY
         # -----------------------------
         merged["is_family"] = (
-            traveller_profile.get("child_count", 0) > 0
-            or traveller_profile.get("baby_count", 0) > 0
+            (traveller_profile.get("child_count") or 0) > 0
+            or (traveller_profile.get("baby_count") or 0) > 0
         )
 
         # -----------------------------
@@ -120,5 +124,4 @@ class ContextMergerNode(BaseNode):
         # -----------------------------
         # RETURN (ONLY ONE KEY)
         # -----------------------------
-        state["merged_context"] = merged
-        return state
+        return {"merged_context": merged}

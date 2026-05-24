@@ -6,7 +6,8 @@ class GraphState(TypedDict):
     # Session
     session_id: str
     user_id: str
-    traveller_id: Optional[str]
+    travellerId: Optional[str]
+    user_type: Optional[str]   # "real" | "native"
     
     # User message
     user_message: str
@@ -82,7 +83,7 @@ def build_initial_state(
     conversation_id: Optional[str] = None,
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
-    traveller_id: Optional[str] = None,
+    travellerId: Optional[str] = None,
 ) -> GraphState:
     """
     Creates a clean initial state for one graph execution.
@@ -93,7 +94,8 @@ def build_initial_state(
         "conversation_id": conversation_id,
         "session_id": session_id,
         "user_id": user_id,
-        "traveller_id": traveller_id,
+        "travellerId": travellerId,
+        "user_type": None,
 
         # input
         "normalized_message": None,

@@ -1,5 +1,5 @@
 import asyncio
-from langgraph.graph import StateGraph,END 
+from langgraph.graph import StateGraph, END, START
 from app.graph.state import GraphState
 from app.nodes.conversation.greeting_node import GreetingNode
 from app.nodes.comprehension.intent_classifier_node import IntentClassifierNode
@@ -7,6 +7,7 @@ from app.nodes.comprehension.clarification_checker_node import ClarificationChec
 from app.nodes.user_profile.profile_loader_node import ProfileLoaderNode
 from app.nodes.merge.context_merger_node import ContextMergerNode
 from app.nodes.conversation.final_response_node import FinalResponseNode
+from app.nodes.core.session_bootstrap import bootstrap_session
 
 
     
@@ -67,42 +68,26 @@ def build_graph():
 
     # Add nodes
     graph.add_node("greeting", GreetingNode())
+    graph.add_node("session_bootstrap", bootstrap_session)
     graph.add_node("intent_classifier", IntentClassifierNode())
-    graph.add_node("profile_loader",ProfileLoaderNode()),
-    graph.add_node("context_merge", ContextMergerNode()),
+    graph.add_node("profile_loader", ProfileLoaderNode())
+    graph.add_node("context_merge", ContextMergerNode())
     graph.add_node("clarification_checker", ClarificationCheckerNode())
     graph.add_node("final_response", FinalResponseNode())
-    
-    
-    
-    #define the entry node 
-    graph.set_entry_point("greeting")
-    
+
+
+
     #   add edges
+    graph.add_edge(START, "greeting")
+    graph.add_edge(START, "session_bootstrap")
     graph.add_edge("greeting", "intent_classifier")
-    graph.add_edge("greeting", "profile_loader")
+    graph.add_edge("session_bootstrap", "profile_loader")
     graph.add_edge("intent_classifier", "context_merge")
     graph.add_edge("profile_loader", "context_merge")
     graph.add_edge("context_merge", "clarification_checker")
     graph.add_edge("clarification_checker", "final_response")
     graph.add_edge("final_response", END)
 
-    #graph.add_conditional_edges(
-     # "clarification_checker",
-      #  route_after_intent_classifier,
-       # { "final_response": "final_response",
-        # "context_merge": "clarification_checker",
-       # )
 
-    #graph.add_edge("constraint_extractor", "clarification_checker")
-    #graph.add_conditional_edges( 
-           # "clarification_checker", 
-           # route_after_clarification_checker, 
-            #{ 
-          #  "final_response": "final_response", }, ) 
-    #graph.add_edge("final_response", END)
-    
-    
-    
 
     return graph.compile()
