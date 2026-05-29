@@ -28,7 +28,44 @@ class WeatherClient(BaseAPIClient):
             retry_delay=0.5,
         )
         
-    # forecast par ville 
+    async def get_current_weather_by_city(
+        self,
+        city: str,
+        lang: str = "fr",
+    ) -> Optional[WeatherForecast]:
+        """Météo actuelle via /weather — températures réelles du moment."""
+
+        if not OPENWEATHER_API_KEY or not city:
+            return None
+
+        data = await self._get(
+            "/weather",
+            params={
+                "q": city,
+                "appid": OPENWEATHER_API_KEY,
+                "units": "metric",
+                "lang": lang,
+            },
+        )
+
+        if not data:
+            return None
+
+        from datetime import datetime
+        main    = data.get("main", {}) or {}
+        weather = (data.get("weather") or [{}])[0] or {}
+        wind    = data.get("wind", {}) or {}
+
+        return WeatherForecast(
+            date=datetime.utcnow().strftime("%Y-%m-%d"),
+            temperature_high=main.get("temp_max"),
+            temperature_low=main.get("temp_min"),
+            description=weather.get("description"),
+            humidity=main.get("humidity"),
+            wind_speed=wind.get("speed"),
+        )
+
+    # forecast par ville
     async def get_forecast_by_city(
         self,
         city: str,

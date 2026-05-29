@@ -51,8 +51,6 @@ class BaseAPIClient:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-        self.client = httpx.AsyncClient(timeout=self.timeout)
-
     def _build_url(self, endpoint: str) -> str:
         return f"{self.base_url}/{endpoint.lstrip('/')}"
 
@@ -61,9 +59,6 @@ class BaseAPIClient:
             **self.headers,
             **(headers or {}),
         }
-
-    async def close(self):
-        await self.client.aclose()
 
     async def _get(
         self,
@@ -126,45 +121,42 @@ class BaseAPIClient:
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await self.client.request(
-                    method=method,
-                    url=url,
-                    **request_kwargs,
-                )
-
-                # Errors that usually should not be retried
-                if response.status_code in [400, 401, 403, 404]:
-                    logger.warning(
-                        f"API client error | "
-                        f"method={method} | "
-                        f"url={url} | "
-                        f"status={response.status_code} | "
-                        f"body={response.text[:300]}"
-                    )
-                    return None
-
-                # Errors that can be retried
-                if response.status_code in [408, 429, 500, 502, 503, 504]:
-                    logger.warning(
-                        f"Retryable API error | "
-                        f"method={method} | "
-                        f"url={url} | "
-                        f"status={response.status_code} | "
-                        f"attempt={attempt + 1}/{self.max_retries + 1}"
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.request(
+                        method=method,
+                        url=url,
+                        **request_kwargs,
                     )
 
-                    if attempt < self.max_retries:
-                        await asyncio.sleep(self.retry_delay * (2 ** attempt))
-                        continue
+                    if response.status_code in [400, 401, 403, 404]:
+                        logger.warning(
+                            f"API client error | "
+                            f"method={method} | "
+                            f"url={url} | "
+                            f"status={response.status_code} | "
+                            f"body={response.text[:300]}"
+                        )
+                        return None
 
-                    return None
+                    if response.status_code in [408, 429, 500, 502, 503, 504]:
+                        logger.warning(
+                            f"Retryable API error | "
+                            f"method={method} | "
+                            f"url={url} | "
+                            f"status={response.status_code} | "
+                            f"attempt={attempt + 1}/{self.max_retries + 1}"
+                        )
+                        if attempt < self.max_retries:
+                            await asyncio.sleep(self.retry_delay * (2 ** attempt))
+                            continue
+                        return None
 
-                response.raise_for_status()
+                    response.raise_for_status()
 
-                if not response.content:
-                    return None
+                    if not response.content:
+                        return None
 
-                return response.json()
+                    return response.json()
 
             except httpx.TimeoutException as e:
                 logger.warning(
@@ -211,4 +203,4 @@ class BaseAPIClient:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self.close()
+        pass

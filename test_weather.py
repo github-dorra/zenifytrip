@@ -1,30 +1,42 @@
-import asyncio
-
-from app.nodes.Logistics.wearth_node import WeatherNode
+from app.nodes.Logistics.weather_node import WeatherNode
 
 
-async def main():
+def main():
 
     node = WeatherNode()
 
     state = {
-        "destination": "Sousse",
-        "language": "fr",
-        "time_reference": "today"
+        "merged_context": {
+            "destination": "Monastir",
+        },
+        "intent_result": {
+            "language": "fr",
+        },
     }
 
-    result = await node(state)
+    result = node(state)
 
     print("\n===== WEATHER RESULT =====\n")
 
-    weather = result["weather_context"]
+    weather = result.get("weather_context", {})
 
-    print(weather)
+    print("available        :", weather.get("available"))
+    print("weather_summary  :", weather.get("weather_summary"))
 
     print("\n===== INSIGHTS =====\n")
 
-    print(weather.insights)
+    insights = weather.get("insights") or {}
+    print("avg_temperature  :", insights.get("avg_temperature"))
+    print("is_hot_day       :", insights.get("is_hot_day"))
+    print("is_rainy_day     :", insights.get("is_rainy_day"))
+    print("is_sunny_day     :", insights.get("is_sunny_day"))
+    print("beach_score      :", insights.get("beach_score"))
+    print("outdoor_score    :", insights.get("outdoor_score"))
+    print("indoor_score     :", insights.get("indoor_score"))
+
+    print("\n===== ERRORS =====\n")
+    print(result.get("errors", []))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

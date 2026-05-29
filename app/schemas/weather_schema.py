@@ -16,27 +16,30 @@ class WeatherForecast(BaseModel):
 # intelligence  ---> scoring 
 class WeatherInsights(BaseModel):
 
+    # --- TEMPERATURES REELLES ---
+    temperature_high: Optional[float] = None   # max du jour
+    temperature_low: Optional[float] = None    # min du jour
+    avg_temperature: float = 0.0               # moyenne (high+low)/2
+
     # --- RAW DATA ---
-    avg_temperature: float = 0.0
     rain_probability: float = 0.0
+    cloudy_ratio: float = 0.0
     wind_speed: float = 0.0
 
     # --- INTELLIGENCE FLAGS ---
     is_hot_day: bool = False
     is_rainy_day: bool = False
     is_sunny_day: bool = False
+    is_cloudy_day: bool = False
     is_windy_day: bool = False
-    
-    
- # --- SCORES (for ranking agent) ---
+
+    # --- SCORES (for ranking agent) ---
     beach_score: float = 0.0
     outdoor_score: float = 0.0
     indoor_score: float = 0.0
 
-    recommendation_hint: str = "outdoor"
-    
 
-# orchestrator input : decision finale 
+# orchestrator input : decision finale
 class WeatherContext(BaseModel):
 
     available: bool = False
@@ -45,6 +48,6 @@ class WeatherContext(BaseModel):
 
     forecast: List[WeatherForecast] = Field(default_factory=list)
 
-    insights: WeatherInsights = Field(default_factory=WeatherInsights)
-    
-    summary: Optional[str] = None
+    insights: Optional[WeatherInsights] = None
+
+    weather_summary: Optional[str] = None
