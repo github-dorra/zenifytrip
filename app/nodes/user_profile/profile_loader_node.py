@@ -102,6 +102,7 @@ class ProfileLoaderNode(BaseNode):
 
             # -------- preferences --------
             "travel_preferences": {
+                "hotel_id": hotel.get("id"),
                 "hotel_name": hotel.get("name"),
                 "hotel_stars": hotel.get("starsCount", 0),
                 "meal_plan": main_accommodation.get("mealPlan"),

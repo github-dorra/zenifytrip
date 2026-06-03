@@ -148,6 +148,7 @@ def build_initial_state(
         "execution_plan": None,
         "validated_execution_plan": None,
 
+        "hotel_candidates": [],
         "flight_options": [],
         "accommodation_options": [],
         "restaurant_options": [],
