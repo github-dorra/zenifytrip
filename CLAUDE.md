@@ -1111,12 +1111,180 @@ INTERNAL_API_BASE=https://api.staging.zenifytrip.com
 |----------------|------------------------|--------|
 | `session_bootstrap.py` | `GET /api/travellers/UserId/{user_id}` | ✅ Implémenté |
 | `profile_service.py` | `GET /api/traveller-management/{traveller_id}` | ✅ Implémenté (bug async) |
-| `hotel_service.py` | `GET /api/hotels` + `GET /api/hotels/{id}` | ❌ À implémenter |
+| `hotel_service.py` | `GET /api/hotels` + `GET /api/hotel-services` + `GET /api/zones` | ✅ Implémenté |
 | `flight_service.py` | `GET /api/flights` + `GET /api/airports` | ❌ À implémenter |
 | `activity_service.py` | `GET /api/bookings` + `GET /api/activities/{id}` | ❌ À implémenter |
 | `restaurant_service.py` | Aucun endpoint interne — source externe | ❌ À implémenter |
 | `availability_service.py` | `GET /api/bookings?travellerId={id}` | ❌ À implémenter |
 | `logging_service.py` | POST vers endpoint feedback (à confirmer) | ❌ À implémenter |
+
+---
+
+## Performance — Réduction Temps de Réponse
+
+### Problème identifié
+`hotel_node` fetchait 1203 hôtels via pagination (12 requêtes HTTP, `take=100`).
+Même avec cache fichier JSON, la désérialisation d'un fichier 5MB+ restait lente.
+
+### Solution critique validée (2026-06-02)
+
+**1. `take=500` au lieu de `take=100`**
+→ 3 requêtes HTTP au lieu de 12 pour paginer le catalogue complet.
+
+**2. Architecture Tier 1 / Tier 2**
+→ `GET /api/hotel-services` embarque les données hôtel complètes dans chaque entrée.
+→ Tier 1 : **1 seul appel API** pour obtenir les ~15 hôtels partenaires + leurs services.
+→ Tier 2 : catalogue complet (1203 hôtels) activé **uniquement si Tier 1 < 2 résultats**.
+→ Cas courant (partenaires) : **< 50ms** après premier chargement en cache.
+
+**3. Cache centralisé avec persistance fichier**
+→ Premier appel : fetch API → stocké en mémoire + fichier JSON.
+→ Appels suivants (dans TTL) : retour mémoire instantané.
+
+> **Règle à ne pas casser** : tout nouveau service de recommandation doit suivre
+> ce pattern Tier 1 / Tier 2. Ne jamais fetcher un catalogue complet sans cache.
+
+---
+
+## Cache Strategy
+
+Cache centralisé dans `app/services/cache_service.py` — instance globale `cache`.
+Persistance JSON dans `app/.cache/zenifytrip_cache.json` — survit aux redémarrages.
+
+```python
+from app.services.cache_service import cache, SimpleTTLCache
+
+# Lire
+data = cache.get("hotels")
+
+# Écrire
+cache.set("hotels", data, SimpleTTLCache.TTL_HOTELS)
+
+# Pattern get-or-set
+data = cache.get_or_set("zones", ZoneService.get_zones, SimpleTTLCache.TTL_ZONES)
+```
+
+### Stratégie Tier 1 / Tier 2 (hotel_node)
+
+`hotel_node` fonctionne en 2 niveaux :
+- **Tier 1 (partenaires)** : 1 seul appel `GET /api/hotel-services` — hôtel embarqué dans la réponse. TTL 2h. ~10-15 hôtels uniques.
+- **Tier 2 (catalogue)** : activé uniquement si Tier 1 retourne < 2 résultats après filtrage. `GET /api/hotels` paginé, TTL 24h.
+
+> ⚠️ Les hôtels partenaires couvrent principalement Sousse/El Kantaoui et Djerba.
+> Si la destination est Hammamet, Tunis, Monastir → Tier 2 sera systématiquement activé.
+
+Chaque candidat inclut `"tier": "partner" | "catalogue"` pour que le Ranking Agent connaisse la priorité commerciale.
+
+### TTL par domaine
+
+| Clé cache | TTL | Constante |
+|-----------|-----|-----------|
+| `hotels` | 24h | `TTL_HOTELS` |
+| `hotel_services` | 24h | `TTL_HOTELS` |
+| `zones` | 24h | `TTL_ZONES` |
+| `weather` | 2h | `TTL_WEATHER` |
+| `maps` | 12h | `TTL_MAPS` |
+| `activities` | 24h | `TTL_ACTIVITIES` |
+| `profile` | 1h | `TTL_PROFILE` |
+| `flights` | 6h | `TTL_FLIGHTS` |
+| `airlines` | 24h | `TTL_AIRLINES` |
+| `airports` | 24h | `TTL_AIRPORTS` |
+
+### Helpers disponibles
+
+| Méthode | Usage |
+|---------|-------|
+| `cache.get(key)` | Lecture (None si expiré) |
+| `cache.set(key, value, ttl)` | Écriture + persist fichier |
+| `cache.delete(key)` | Suppression |
+| `cache.get_or_set(key, loader, ttl)` | Pattern fetch-if-miss |
+| `cache.invalidate_prefix("flights_")` | Invalider un domaine entier |
+| `cache.clear_expired()` | Purger les entrées expirées |
+| `cache.stats()` | Métriques debug |
+
+---
+
+## flight_flux — Flux complet Flight Recommender
+
+> Flux validé et testé (6/6 PASS) — session 2026-06-06.
+> Fichiers : `app/services/flight_service.py` + `app/data/tunisia_destinations.py`
+> + `app/nodes/recommendation/domain/flight_node.py` + `app/schemas/flight_schema.py`
+
+```
+User : "je veux aller à Kairouan en juillet"
+              │
+              ▼
+constraints = {destination: "kairouan", start_date: "2026-07-10"}
+              │
+              ▼
+get_flight_candidates(constraints)
+    │
+    ├── _extract_travel_month("2026-07-10") → 7
+    │
+    ├── TIER 1 : profil voyageur (USER RÉEL)
+    │   └── pas de vols Kairouan dans profil → []
+    │
+    ├── city_to_airports("kairouan")          ← tunisia_destinations.py
+    │   └── [NBE(60km), MIR(65km), SUF(70km)]
+    │
+    ├── Pour NBE (60km) :
+    │   ├── filter_flights(target_iata="NBE") → vols atterrissant à NBE
+    │   └── _enrich_with_destination()        ← tunisia_destinations.py
+    │       ├── destination_features("NBE")   → tags, vibe, traveler_types
+    │       ├── get_seasonal_advice("NBE", 7) → recommended + raison
+    │       └── get_recommendation_reason("NBE", 7) → phrase FR
+    │       → transfer_needed=True, transfer_distance_km=60
+    │
+    ├── Pour MIR (65km) : même chose
+    ├── Pour SUF (70km) : même chose
+    │
+    └── Tri par match_score → top 10 candidats enrichis
+              │
+              ▼
+flight_candidates = [
+  {
+    "flight_number": "TU101", "landing_airport": "NBE",
+    "user_destination": "kairouan",
+    "transfer_needed": True, "transfer_distance_km": 60,
+    "transfer_label": "Enfidha-Hammamet",
+    "seasonal_advice": {"recommended": True, "reason": "Hammamet en juillet..."},
+    "recommendation_reason": "Enfidha en juillet : mer idéale. À voir : Yasmine Hammamet.",
+    "destination_features": {"tags": ["plage","resort",...], "traveler_types": [...]}
+  },
+  { "landing_airport": "MIR", "transfer_distance_km": 65, ... },
+  { "landing_airport": "SUF", "transfer_distance_km": 70, ... },
+]
+              │
+              ▼
+ranking_node → score = 70% user_score + 30% business_score
+  user_score  : tags matchent keywords, saison ok, profil traveler_type
+  business_score : tier profile > catalogue, transfert agence dispo
+              │
+              ▼
+final_response :
+  "Pour Kairouan, vol vers Enfidha (60km).
+   Kairouan est idéale au printemps — juillet est chaud.
+   Transfert agence disponible / taxi ~45 min."
+```
+
+### Cas particuliers gérés
+
+| Cas | Comportement |
+|-----|-------------|
+| Destination avec aéroport (`"tunis"`) | `city_to_airports` → `[TUN(8km)]` → `transfer_needed=False` |
+| Destination sans aéroport (`"kairouan"`) | → `[NBE, MIR, SUF]` → `transfer_needed=True` |
+| Pas de destination (exploratory) | Chemin séparé → tous les vols sans filtre destination |
+| Ville inconnue | Fallback texte brut sur l'API |
+| USER RÉEL avec profil | Tier 1 enrichi aussi avec destination_features |
+
+### Fonctions tunisia_destinations utilisées dans flight_service
+
+| Fonction | Rôle |
+|----------|------|
+| `city_to_airports(city)` | Résout ville → liste aéroports avec distances |
+| `destination_features(iata)` | Features brutes pour ranking (tags, vibe, saisons) |
+| `get_seasonal_advice(iata, month)` | Conseil saisonnier — utilise travel_month fourni |
+| `get_recommendation_reason(iata, month)` | Phrase FR prête pour final_response |
 
 ---
 
