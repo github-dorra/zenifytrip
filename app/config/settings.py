@@ -21,8 +21,11 @@ AIRLINES_API_URL = os.getenv("AIRLINES_API_URL")
 
 
 
-# --- Logistics 
+# --- Logistics
 OPENWEATHER_API_KEY= os.getenv("OPENWEATHER_API_KEY")
 GOOGLE_MAPS_API_KEY= os.getenv("GOOGLE_MAPS_API_KEY")
 OPENWEATHER_BASE_URL= os.getenv("OPENWEATHER_BASE_URL")
 GOOGLE_MAPS_BASE_URL= os.getenv("GOOGLE_MAPS_BASE_URL")
+
+# --- Restaurant Approach C
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")

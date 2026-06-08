@@ -78,3 +78,27 @@ RESPONSE_CONFIG = NodeConfig(
     cache_enabled=False,
 )
 
+RESTAURANT_C_CONFIG = NodeConfig(
+    name="restaurant_node_c",
+    node_type="llm_agent",
+    provider="groq",
+    model="llama-3.3-70b-versatile",
+    temperature=0.1,
+    max_tokens=3000,
+    response_format="json",
+    cache_enabled=True,
+    cache_ttl_seconds=259200,  # 72h
+)
+
+RESTAURANT_B_CONFIG = NodeConfig(
+    name="restaurant_node_b",
+    node_type="llm_agent",
+    provider="groq",
+    model="llama-3.3-70b-versatile",
+    temperature=0.3,
+    max_tokens=2500,
+    response_format="json",
+    cache_enabled=True,
+    cache_ttl_seconds=259200,  # 72h
+)
+

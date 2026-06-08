@@ -1,0 +1,196 @@
+{
+  "benchmark_date": "2026-06-07T12:09:00",
+  "benchmark_version": "1.0",
+  "total_scenarios": 6,
+  "summary": {
+    "A": {
+      "total_candidates": 58,
+      "avg_latency_ms": 1361,
+      "total_cost_usd": 0.0,
+      "total_tokens": 0,
+      "scenarios_won": 6,
+      "hallucination_pct": 0
+    },
+    "B": {
+      "total_candidates": 14,
+      "avg_latency_ms": 4397,
+      "total_cost_usd": 0.00428,
+      "total_tokens": 9151,
+      "scenarios_won": 0,
+      "hallucination_pct": 46
+    },
+    "C": {
+      "total_candidates": 26,
+      "avg_latency_ms": 7607,
+      "total_cost_usd": 0.00777,
+      "total_tokens": 11938,
+      "scenarios_won": 0,
+      "hallucination_pct": 0
+    }
+  },
+  "verdict": "A_winner",
+  "scenarios": [
+    {
+      "scenario": "1 — Sousse | seafood | medium",
+      "A": {
+        "candidates": 10,
+        "latency_ms": 1629,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 100.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "B": {
+        "candidates": 3,
+        "latency_ms": 2149,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.000997
+      },
+      "C": {
+        "candidates": 4,
+        "latency_ms": 8238,
+        "has_rating_pct": 40.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.00128
+      }
+    },
+    {
+      "scenario": "2 — Djerba | famille | medium",
+      "A": {
+        "candidates": 10,
+        "latency_ms": 1229,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 100.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "B": {
+        "candidates": 3,
+        "latency_ms": 1608,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.000975
+      },
+      "C": {
+        "candidates": 7,
+        "latency_ms": 5626,
+        "has_rating_pct": 42.9,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001479
+      }
+    },
+    {
+      "scenario": "3 — Tunis | cuisine locale | medium",
+      "A": {
+        "candidates": 10,
+        "latency_ms": 1247,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 100.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "B": {
+        "candidates": 3,
+        "latency_ms": 7681,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001
+      },
+      "C": {
+        "candidates": 4,
+        "latency_ms": 8066,
+        "has_rating_pct": 0.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001158
+      }
+    },
+    {
+      "scenario": "4 — Exploratory | pas de destination",
+      "A": {
+        "candidates": 10,
+        "latency_ms": 1141,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 100.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "B": {
+        "candidates": 3,
+        "latency_ms": 6702,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001001
+      },
+      "C": {
+        "candidates": 3,
+        "latency_ms": 7531,
+        "has_rating_pct": 0.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001029
+      }
+    },
+    {
+      "scenario": "5 — Destination inconnue | fallback",
+      "A": {
+        "candidates": 7,
+        "latency_ms": 1143,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 100.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "B": {
+        "candidates": 0,
+        "latency_ms": 2712,
+        "has_rating_pct": 0.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "C": {
+        "candidates": 0,
+        "latency_ms": 7897,
+        "has_rating_pct": 0.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      }
+    },
+    {
+      "scenario": "6 — Monastir | luxury romantique",
+      "A": {
+        "candidates": 10,
+        "latency_ms": 1269,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 100.0,
+        "has_reason_pct": 0.0,
+        "cost_usd": 0.0
+      },
+      "B": {
+        "candidates": 3,
+        "latency_ms": 4833,
+        "has_rating_pct": 100.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001037
+      },
+      "C": {
+        "candidates": 3,
+        "latency_ms": 7694,
+        "has_rating_pct": 0.0,
+        "has_coords_pct": 0.0,
+        "has_reason_pct": 100.0,
+        "cost_usd": 0.001008
+      }
+    }
+  ]
+}

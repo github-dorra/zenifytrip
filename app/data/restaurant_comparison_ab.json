@@ -1,0 +1,271 @@
+{
+  "meta": {
+    "date": "2026-06-07",
+    "description": "Comparaison objective Approche A (Google Places) vs Approche B (LLM Groq llama-3.3-70b)",
+    "decision": "Approche C — Hybride retenue",
+    "test_file": "app/test_compare_ab.py"
+  },
+  "summary": {
+    "total_candidates_A": 56,
+    "total_candidates_B": 15,
+    "avg_latency_cold_ms_A": 1467,
+    "avg_latency_cold_ms_B": 1493,
+    "total_cost_usd_A": 0.0,
+    "total_cost_usd_B": 0.00504,
+    "total_tokens_B": 8843,
+    "scenarios_won_A": 4,
+    "scenarios_won_B": 1,
+    "ties": 1
+  },
+  "hallucination_check": {
+    "verified_date": "2026-06-07",
+    "method": "Recherche web manuelle — TripAdvisor, Google Maps, Facebook, RestaurantGuru",
+    "results": [
+      {
+        "restaurant": "Le Lido",
+        "scenario": "Sousse seafood",
+        "verdict": "REAL",
+        "detail": "Confirmé TripAdvisor, Facebook, établi depuis 1959 Avenue Mohamed V Sousse"
+      },
+      {
+        "restaurant": "La Sirène",
+        "scenario": "Sousse seafood",
+        "verdict": "PARTIAL",
+        "detail": "Café La Sirène existe à Sousse Kantaoui — nom et type approximatifs"
+      },
+      {
+        "restaurant": "Dar El Jeld",
+        "scenario": "Sousse seafood",
+        "verdict": "WRONG_CITY",
+        "detail": "Restaurant réel et célèbre mais situé à Tunis (médina), pas à Sousse"
+      },
+      {
+        "restaurant": "Restaurant Masmoudi",
+        "scenario": "Djerba famille",
+        "verdict": "PARTIAL",
+        "detail": "Patisserie Masmoudi existe à Djerba (TripAdvisor 3.5/5) — pâtisserie, pas restaurant famille"
+      },
+      {
+        "restaurant": "Le Petit Châtelet",
+        "scenario": "Djerba famille",
+        "verdict": "HALLUCINATED",
+        "detail": "Aucun résultat trouvé sur TripAdvisor, Google, Petit Futé, RestaurantGuru"
+      },
+      {
+        "restaurant": "La Djerbienne",
+        "scenario": "Djerba famille",
+        "verdict": "WRONG_CITY",
+        "detail": "Restaurant réel sur Facebook (+216 53 574 642) mais situé à Tunis, pas à Djerba"
+      },
+      {
+        "restaurant": "Weld El Haj",
+        "scenario": "Tunis local",
+        "verdict": "REAL",
+        "detail": "Institution de la médina de Tunis, rating 4.6 Google, rue de la Kasbah — confirmé par 5+ sources"
+      },
+      {
+        "restaurant": "Dar El Jeld",
+        "scenario": "Tunis local",
+        "verdict": "REAL",
+        "detail": "Gastronomique célèbre médina Tunis, World's 50 Best Discovery, bâtiment 18ème siècle"
+      },
+      {
+        "restaurant": "Le Grand Vefour",
+        "scenario": "Tunis local",
+        "verdict": "HALLUCINATED",
+        "detail": "Le Grand Véfour est un restaurant parisien (Palais Royal Paris 1er) — n'existe pas à Tunis. Transposition de nom célèbre."
+      },
+      {
+        "restaurant": "Sidi Bouhdid",
+        "scenario": "Monastir luxury",
+        "verdict": "WRONG_CITY",
+        "detail": "Sidi Bouhdid existe à Hammamet (TripAdvisor confirmé), pas à Monastir"
+      },
+      {
+        "restaurant": "La Marina",
+        "scenario": "Monastir luxury",
+        "verdict": "UNCERTAIN",
+        "detail": "Nom générique non trouvé spécifiquement — Marina The Captain existe à Monastir marina (rating 4.2)"
+      },
+      {
+        "restaurant": "Le Roof",
+        "scenario": "Monastir luxury",
+        "verdict": "HALLUCINATED",
+        "detail": "Aucun résultat pour Le Roof à Monastir — rooftops existent à Tunis mais pas ce nom"
+      }
+    ],
+    "stats": {
+      "total_verified": 12,
+      "real": 3,
+      "partial": 3,
+      "wrong_city": 3,
+      "hallucinated": 3,
+      "reliability_pct": 27.0,
+      "error_rate_pct": 46.0
+    }
+  },
+  "scenarios": [
+    {
+      "scenario": "1 — Sousse | seafood | medium",
+      "approche_A": {
+        "candidates_returned": 10,
+        "latency_cold_ms": 1427,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
+        "has_coordinates_pct": 100.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.45,
+        "tokens_total": 0,
+        "estimated_cost_usd": 0.0
+      },
+      "approche_B": {
+        "candidates_returned": 3,
+        "latency_cold_ms": 1818,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 100.0,
+        "has_coordinates_pct": 0.0,
+        "has_recommendation_reason_pct": 100.0,
+        "avg_match_score": 0.7667,
+        "tokens_total": 1534,
+        "estimated_cost_usd": 0.000996
+      }
+    },
+    {
+      "scenario": "2 — Djerba | famille | medium",
+      "approche_A": {
+        "candidates_returned": 10,
+        "latency_cold_ms": 1848,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
+        "has_coordinates_pct": 100.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.51,
+        "tokens_total": 0,
+        "estimated_cost_usd": 0.0
+      },
+      "approche_B": {
+        "candidates_returned": 3,
+        "latency_cold_ms": 1843,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 100.0,
+        "has_coordinates_pct": 0.0,
+        "has_recommendation_reason_pct": 100.0,
+        "avg_match_score": 0.81,
+        "tokens_total": 1559,
+        "estimated_cost_usd": 0.001014
+      }
+    },
+    {
+      "scenario": "3 — Tunis | cuisine locale | medium",
+      "approche_A": {
+        "candidates_returned": 10,
+        "latency_cold_ms": 1315,
+        "fields_completeness_pct": 65.6,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
+        "has_coordinates_pct": 100.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.3267,
+        "tokens_total": 0,
+        "estimated_cost_usd": 0.0
+      },
+      "approche_B": {
+        "candidates_returned": 3,
+        "latency_cold_ms": 1525,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 100.0,
+        "has_coordinates_pct": 0.0,
+        "has_recommendation_reason_pct": 100.0,
+        "avg_match_score": 0.85,
+        "tokens_total": 1546,
+        "estimated_cost_usd": 0.001004
+      }
+    },
+    {
+      "scenario": "4 — Exploratory | pas de destination",
+      "approche_A": {
+        "candidates_returned": 10,
+        "latency_cold_ms": 1439,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
+        "has_coordinates_pct": 100.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.35,
+        "tokens_total": 0,
+        "estimated_cost_usd": 0.0
+      },
+      "approche_B": {
+        "candidates_returned": 3,
+        "latency_cold_ms": 1488,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 100.0,
+        "has_coordinates_pct": 0.0,
+        "has_recommendation_reason_pct": 100.0,
+        "avg_match_score": 0.85,
+        "tokens_total": 1538,
+        "estimated_cost_usd": 0.000999
+      }
+    },
+    {
+      "scenario": "5 — Destination inconnue | fallback",
+      "approche_A": {
+        "candidates_returned": 6,
+        "latency_cold_ms": 1358,
+        "fields_completeness_pct": 72.2,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 50.0,
+        "has_coordinates_pct": 100.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.4167,
+        "tokens_total": 0,
+        "estimated_cost_usd": 0.0
+      },
+      "approche_B": {
+        "candidates_returned": 0,
+        "latency_cold_ms": 703,
+        "fields_completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
+        "has_coordinates_pct": 0.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.0,
+        "tokens_total": 1088,
+        "estimated_cost_usd": 0.0
+      }
+    },
+    {
+      "scenario": "6 — Monastir | luxury romantique",
+      "approche_A": {
+        "candidates_returned": 10,
+        "latency_cold_ms": 1419,
+        "fields_completeness_pct": 70.0,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
+        "has_coordinates_pct": 100.0,
+        "has_recommendation_reason_pct": 0.0,
+        "avg_match_score": 0.31,
+        "tokens_total": 0,
+        "estimated_cost_usd": 0.0
+      },
+      "approche_B": {
+        "candidates_returned": 3,
+        "latency_cold_ms": 1586,
+        "fields_completeness_pct": 66.7,
+        "has_rating_pct": 100.0,
+        "has_price_level_pct": 100.0,
+        "has_coordinates_pct": 0.0,
+        "has_recommendation_reason_pct": 100.0,
+        "avg_match_score": 0.9,
+        "tokens_total": 1579,
+        "estimated_cost_usd": 0.001029
+      }
+    }
+  ]
+}

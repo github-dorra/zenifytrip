@@ -8,6 +8,7 @@ Centralized cache for the ZenifyTrip system.
 import os
 import json
 import time
+import threading
 from typing import Any, Callable, Dict, Optional
 
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "..", ".cache", "zenifytrip_cache.json")
@@ -28,9 +29,11 @@ class SimpleTTLCache:
     TTL_FLIGHTS        = 21600   # 6h  — liste vols (change peu dans la journée)
     TTL_AIRLINES       = 86400   # 24h — compagnies aériennes (très stable)
     TTL_AIRPORTS       = 86400   # 24h — aéroports (très stable)
+    TTL_RESTAURANTS    = 259200  # 72h — restaurants (stable, données Google Places / Tavily)
 
     def __init__(self):
         self._store: Dict[str, dict] = {}
+        self._save_lock = threading.Lock()
         self._load_from_file()
 
     # =========================================================
@@ -53,11 +56,11 @@ class SimpleTTLCache:
             "value":      value,
             "expires_at": time.time() + ttl_seconds,
         }
-        self._save_to_file()
+        self._save_to_file_async()
 
     def delete(self, key: str) -> None:
         self._store.pop(key, None)
-        self._save_to_file()
+        self._save_to_file_async()
 
     # =========================================================
     # HELPERS
@@ -91,7 +94,7 @@ class SimpleTTLCache:
         for k in keys_to_delete:
             self._store.pop(k, None)
         if keys_to_delete:
-            self._save_to_file()
+            self._save_to_file_async()
         return len(keys_to_delete)
 
     def clear_expired(self) -> int:
@@ -101,7 +104,7 @@ class SimpleTTLCache:
         for k in expired:
             self._store.pop(k, None)
         if expired:
-            self._save_to_file()
+            self._save_to_file_async()
         return len(expired)
 
     def stats(self) -> Dict[str, Any]:
@@ -140,6 +143,25 @@ class SimpleTTLCache:
                 json.dump(self._store, f, ensure_ascii=False)
         except Exception as e:
             print(f"[CacheService] save error: {e}")
+
+    def _save_to_file_async(self) -> None:
+        """Écrit le cache sur disque dans un thread daemon — non bloquant."""
+        snapshot = {k: v.copy() for k, v in self._store.items()}
+
+        def _write():
+            if not self._save_lock.acquire(blocking=False):
+                return  # écriture déjà en cours — on saute
+            try:
+                cache_dir = os.path.dirname(CACHE_FILE)
+                os.makedirs(cache_dir, exist_ok=True)
+                with open(CACHE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(snapshot, f, ensure_ascii=False)
+            except Exception as e:
+                print(f"[CacheService] async save error: {e}")
+            finally:
+                self._save_lock.release()
+
+        threading.Thread(target=_write, daemon=True).start()
 
 
 cache = SimpleTTLCache()

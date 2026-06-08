@@ -1,50 +1,41 @@
-"""
-Restaurant Node — Production (Approche A retenue)
-
-Décision architecturale (2026-06-08) :
-  Approche A — Google Places API pur, zéro hallucination, TTL 72h.
-  Benchmark : 6/6 PASS | avg 10 candidats | ~1.4s | $0 | 0% hallucination.
-
-Les fichiers restaurant_node_a / _b / _c restent disponibles pour référence.
-"""
-
 from typing import Dict, Any, List
 
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.schemas.restaurant_schema import RestaurantCandidate
-from app.services.restaurant_service import RestaurantService
+from app.services.restaurant_service_a import RestaurantServiceA
 
 
-class RestaurantNode(BaseNode):
+class RestaurantNodeA(BaseNode):
 
     def __init__(self):
         super().__init__(
             NodeConfig(
-                name="restaurant_node",
+                name="restaurant_node_a",
                 node_type="technical",
             )
         )
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
 
-        # ── 1. EXTRACTION ────────────────────────────────────────────
-        semantic_query   = state.get("semantic_query") or ""
-        global_keywords  = state.get("global_keywords") or []
+        # ── 1. EXTRACTION — mapping validé ───────────────────────────
+        semantic_query      = state.get("semantic_query") or ""
+        global_keywords     = state.get("global_keywords") or []
 
-        merged_context   = state.get("merged_context") or {}
-        destination      = merged_context.get("destination")
-        budget_level     = merged_context.get("budget_level")
-        is_family        = merged_context.get("is_family", False)
+        merged_context  = state.get("merged_context") or {}
+        destination     = merged_context.get("destination")
+        budget_level    = merged_context.get("budget_level")
+        is_family       = merged_context.get("is_family", False)
 
-        profile_data     = state.get("profile_data") or {}
-        hotel_id         = (profile_data.get("travel_preferences") or {}).get("hotel_id")
+        profile_data    = state.get("profile_data") or {}
+        hotel_id        = (profile_data.get("travel_preferences") or {}).get("hotel_id")
 
-        suggestion_mode  = state.get("suggestion_mode") or "exploratory"
-        max_candidates   = 15 if suggestion_mode == "exploratory" else 10
+        suggestion_mode = state.get("suggestion_mode") or "exploratory"
+
+        max_candidates  = 15 if suggestion_mode == "exploratory" else 10
 
         # ── 2. APPEL SERVICE ─────────────────────────────────────────
         try:
-            raw_candidates, benchmark = RestaurantService.get_restaurant_candidates(
+            raw_candidates, benchmark = RestaurantServiceA.get_restaurant_candidates(
                 semantic_query=semantic_query,
                 global_keywords=global_keywords,
                 destination=destination,
@@ -55,7 +46,7 @@ class RestaurantNode(BaseNode):
                 max_candidates=max_candidates,
             )
         except Exception as e:
-            self.logger.error(f"RestaurantNode service error: {e}")
+            self.logger.error(f"RestaurantNodeA service error: {e}")
             raw_candidates, benchmark = [], {}
 
         # ── 3. VALIDATION PYDANTIC ───────────────────────────────────
@@ -89,7 +80,7 @@ class RestaurantNode(BaseNode):
             f"confidence={confidence:.3f}"
         )
 
-        # ── 6. RETOUR ────────────────────────────────────────────────
+        # ── 6. RETOUR — clé déjà dans state.py ───────────────────────
         return {
             "restaurant_candidates": validated,
         }
