@@ -146,7 +146,69 @@ Entrée Utilisateur
                                   END
 ```
 
-> Routage conditionnel commenté dans `builder.py` — actuellement `clarification_checker` va toujours vers `final_response`.
+> Pipeline phases 1→4 câblé en session 2026-06-08. Voir **VERSION 2** ci-dessous pour l'état actuel du graphe.
+
+---
+
+### VERSION 2 — Phases 1-4 câblées ✓ (session 2026-06-08)
+
+**16 nodes dans le graphe** (compilation OK, tests fonctionnels à faire).
+
+#### Nouvelles implémentations
+
+| Node | Fichier | Statut | Rôle |
+|------|---------|--------|------|
+| `orchestrator` | `nodes/recommendation/orchestration/orchestrator_node.py` | ✅ Implémenté | Planner Python — décide `requested_services` selon intent |
+| `hotel_node` | `nodes/recommendation/domain/hotel_node.py` | ✅ Implémenté | Tier 1 partenaires + Tier 2 catalogue, haversine, distance_km |
+| `flight_node` | `nodes/recommendation/domain/flight_node.py` | ✅ Implémenté | Profil voyageur + catalogue vols, enrichissement destination |
+| `restaurant_node` | `nodes/recommendation/domain/restaurant_node.py` | ✅ Implémenté | Google Places API (Approche A), search_strategy intent-driven |
+| `activity_node` | `nodes/recommendation/domain/activity_node.py` | ⚠️ Stub | Retourne `activity_candidates: []` — à implémenter |
+| `data_merger` | `nodes/recommendation/postprocessing/data_merger_node.py` | ✅ Implémenté | Fusionne les 4 listes de candidats, priorité par intent |
+
+#### Topologie actuelle du graphe
+
+```
+START → [greeting] + [session_bootstrap]         ← fan-out parallèle
+       → [intent_classifier] + [profile_loader]  ← fan-out parallèle
+       → [context_merge] → [clarification_checker]
+       → (conditionnel) weather_node OU final_response
+       → [weather_node] → [semantic_node] → [orchestrator]
+       → (conditionnel fan-out) hotel_node | flight_node | restaurant_node | activity_node
+       → (fan-in) [data_merger] → [final_response] → END
+```
+
+#### Logique OrchestratorNode
+
+| Intent primaire | Services activés |
+|-----------------|-----------------|
+| `accommodation_recommendation` | `[hotel_node]` |
+| `flight_recommendation` | `[flight_node]` |
+| `restaurant_recommendation` | `[restaurant_node]` |
+| `activity_recommendation` | `[activity_node]` |
+| `day_planning` | `[hotel_node, activity_node, restaurant_node]` |
+| `trip_package_recommendation` | `[flight_node, hotel_node, activity_node, restaurant_node]` |
+| `travel_question` / `greeting` / `unsupported` | `[]` → route vers `final_response` directement |
+
+**Règles métier supplémentaires :**
+- Intents secondaires enrichissent les services (ex. `secondary: restaurant_recommendation` → ajoute `restaurant_node`)
+- `accommodation + mode exploratory` → ajoute `activity_node` automatiquement
+- `trip_package + destination` → force les 4 services
+
+#### Corrections architecturales (session 2026-06-08)
+
+| Fichier | Correction |
+|---------|-----------|
+| `hotel_node.py` | GeoJSON `[lng, lat]` → `{"lat": coords[1], "lng": coords[0]}` ; ajout `_haversine()` + `distance_km` |
+| `restaurant_service_a.py` | GeoJSON fix ; fallback géocodage Google ; `search_strategy` dict remplace `hotel_id` binaire |
+| `restaurant_node.py` | `_build_search_strategy()` : mode basé sur intent/keywords, pas sur type user |
+| `semantic_node.py` | 4 keywords de proximité ajoutés : `nearbyRestaurant`, `walkingDistance`, `hotelRestaurant`, `aroundMe` |
+| `tunisia_destinations.py` | `AIRPORT_COORDS` dict (9 aéroports) + `get_airport_coords(iata)` |
+
+#### À faire avant tests end-to-end
+
+- [ ] Implémenter `activity_node.py` (GET /api/bookings → /api/activities/{id})
+- [ ] Câbler `ranking_node` → `day_planner_node` → `recommendation_composer_node` entre `data_merger` et `final_response`
+- [ ] Test bout-en-bout Phase 1→4
 
 ## Structure des Répertoires
 ```
@@ -1112,9 +1174,9 @@ INTERNAL_API_BASE=https://api.staging.zenifytrip.com
 | `session_bootstrap.py` | `GET /api/travellers/UserId/{user_id}` | ✅ Implémenté |
 | `profile_service.py` | `GET /api/traveller-management/{traveller_id}` | ✅ Implémenté (bug async) |
 | `hotel_service.py` | `GET /api/hotels` + `GET /api/hotel-services` + `GET /api/zones` | ✅ Implémenté |
-| `flight_service.py` | `GET /api/flights` + `GET /api/airports` | ❌ À implémenter |
+| `flight_service.py` | `GET /api/flights` + `GET /api/airports` | ✅ Implémenté |
 | `activity_service.py` | `GET /api/bookings` + `GET /api/activities/{id}` | ❌ À implémenter |
-| `restaurant_service.py` | Aucun endpoint interne — source externe | ❌ À implémenter |
+| `restaurant_service.py` | Google Places API (Approche A) — source externe | ✅ Implémenté |
 | `availability_service.py` | `GET /api/bookings?travellerId={id}` | ❌ À implémenter |
 | `logging_service.py` | POST vers endpoint feedback (à confirmer) | ❌ À implémenter |
 
@@ -1288,6 +1350,142 @@ final_response :
 
 ---
 
+---
+
+### VERSION 3 — Phase 4 Activity Node + Availability Checker ✓ (session 2026-06-13)
+
+**Objectif de la session :** Compléter le module recommandation activités (Phase 4) et déplacer l'`availability_checker` dans le pipeline principal.
+
+#### Nouvelles implémentations
+
+| Fichier | Statut | Rôle |
+|---------|--------|------|
+| `app/services/activity_service/__init__.py` | ✅ Nouveau | Re-exports `InternalActivityService` + `MongoActivityService` |
+| `app/services/activity_service/internal_activity_service.py` | ✅ Nouveau | SOURCE 1 — catalogue agence via `/api/bookings → /api/activities/{id}`, `business_score=0.8` |
+| `app/services/activity_service/mongodb_activity_service.py` | ✅ Nouveau | SOURCE 2 — MongoDB Atlas (scraper TripAdvisor par ville), `business_score=0.2` |
+| `app/schemas/activity_schema.py` | ✅ Nouveau | `ActivityCandidate` + `ActivityNodeOutput` Pydantic v2 |
+| `app/nodes/recommendation/domain/activity_node.py` | ✅ Remplacé stub | Fetch parallèle ThreadPoolExecutor, dédup rapidfuzz seuil 75 |
+| `app/services/availability_service.py` | ✅ Refactorisé | Extraction destination 3 niveaux (adresse dict → nom hôtel → GPS haversine) |
+| `app/nodes/recommendation/context/availability_checker_node.py` | ✅ Mis à jour | Lit `user_geolocation` depuis state, écrit `traveller_available` + `availability_result` |
+| `app/nodes/merge/context_merger_node.py` | ✅ Mis à jour | Extrait destination depuis `profile_data.accommodations[].hotel` si non fournie |
+| `app/nodes/comprehension/clarification_checker_node.py` | ✅ Mis à jour | Skip `destination` si `trip_is_ongoing` ou `destination_source == "hotel_profile"` |
+| `app/graph/state.py` | ✅ Mis à jour | Ajout `user_geolocation: Optional[Dict[str, Any]]` |
+| `app/graph/builder.py` | ✅ Mis à jour | `availability_checker` câblé après `context_merge`, bug `semantic → final_response` corrigé |
+| `app/test_activity_graph.py` | ✅ Nouveau | Test end-to-end 3 scénarios — résultat 3/3 PASS, 15/15 checks |
+| `app/config/__init__.py` | ✅ Nouveau | Fichier init config |
+| `app/config/mongodb.py` | ✅ Existant | `activities_collection()`, `restaurant_collection()`, `ensure_indexes()` |
+
+---
+
+#### Architecture Two-Source Activities
+
+```
+ActivityNode.run(state)
+    │
+    ├── ThreadPoolExecutor(max_workers=2, timeout=15s)
+    │   ├── SOURCE 1 : InternalActivityService
+    │   │   → GET /api/bookings (catalogue agence)
+    │   │   → GET /api/activities/{id} (détail par booking)
+    │   │   → business_score = 0.8
+    │   │   → user_score : keyword_match(35%) + spots_available(25%) + budget(20%) + traveler_type(20%)
+    │   │
+    │   └── SOURCE 2 : MongoActivityService
+    │       → MongoDB Atlas (TripAdvisor scraper par ville)
+    │       → filtre : destination_id, type={attraction|tour}, keywords in tags
+    │       → business_score = 0.2
+    │
+    ├── _dedup() — rapidfuzz fuzz.ratio ≥ 75 → SOURCE 1 prime
+    │
+    ├── tri par (is_available DESC, score DESC)
+    │
+    └── _validate() — ActivityCandidate.model_dump() → list[dict]
+        IMPORTANT : retourne `validated` (list of dicts) PAS `output.activity_candidates`
+        (ActivityNodeOutput reconvertirait en objets Pydantic → crash .get() downstream)
+```
+
+**Score final :** `0.7 × user_score + 0.3 × business_score`
+
+---
+
+#### Architecture Availability Checker + Destination Resolution
+
+```
+AvailabilityCheckerNode
+    → check_availability(traveller_id, profile_data, request_date, geolocation)
+        │
+        ├── trip_is_ongoing  : outboundDate ≤ today ≤ returnDate
+        ├── days_remaining   : returnDate − today
+        ├── booked_activity_ids : tous les activityId du voyageur
+        ├── booked_time_slots   : (date, hotelServiceId) bookés
+        │
+        └── destination (3 niveaux) :
+            L1 : hotel.address dict → keys : city|ville|locality|municipality|town|region|...
+            L2a: hotel.address string → _match_city_in_text() (scans CITY_TO_IATA 133 entrées)
+            L2b: hotel.name → _match_city_in_text()
+            L3 : user_geolocation {lat,lng} → _nearest_city_from_coords() (haversine, rayon max 200km)
+```
+
+**Pourquoi L2 sur nom hôtel plutôt que IATA du vol de retour :**
+> Le vol atterrit à TUN mais l'hôtel peut être à Sousse (60km). L'aéroport de départ ≠ destination réelle.
+> L'adresse/nom de l'hôtel est la source de vérité.
+
+---
+
+#### Topologie graphe VERSION 3
+
+```
+START → [greeting] + [session_bootstrap]              ← fan-out parallèle
+      → [intent_classifier] + [profile_loader]        ← fan-out parallèle
+      → [context_merge]                               ← fan-in (même profondeur → pas de double exec)
+      → [availability_checker]                        ← APRÈS context_merge (évite LangGraph double-exec bug)
+      → [clarification_checker]
+      → (conditionnel) weather_node OU final_response
+      → [weather_node] → [semantic_node] → [orchestrator]
+      → (fan-out conditionnel) hotel_node | flight_node | restaurant_node | activity_node
+      → (fan-in) [data_merger] → [final_response] → END
+```
+
+**Règle LangGraph critique (fan-in) :** si deux nodes de profondeurs différentes convergent vers le même node, LangGraph exécute ce node une fois par chemin entrant → double exécution → `InvalidUpdateError` sur les clés écrasées. Solution : toujours placer les nodes auxquels on veut fan-in au **même niveau de profondeur**.
+
+---
+
+#### Champ `user_geolocation` dans GraphState
+
+```python
+user_geolocation: Optional[Dict[str, Any]]  # {lat: float, lng: float} | None
+```
+
+- Fourni par le client (browser/mobile) si permission accordée
+- Le backend ne peut PAS demander la géolocalisation — c'est une permission navigateur
+- Sert de fallback L3 dans `_extract_destination_from_hotel()`
+- IP geolocation (ip-api.com) peut servir d'alternative automatique sans permission
+
+---
+
+#### Bugs Corrigés (session 2026-06-13)
+
+| Bug | Cause | Fix |
+|-----|-------|-----|
+| `InvalidUpdateError: activity_candidates / traveller_available` | `availability_checker` entre `profile_loader` et `context_merge` → profondeurs différentes → double exec | Déplacer `availability_checker` APRÈS `context_merge` |
+| `'ActivityCandidate' object has no attribute 'get'` in data_merger | `activity_node` retournait `output.activity_candidates` (liste Pydantic) au lieu de `validated` (liste dicts) | Retourner `validated` directement depuis `_validate()` |
+| `TypeError: '>' not supported between NoneType and int` in context_merger | `constraints.get("travelers", 1)` retourne None si clé existe avec valeur None | `int(constraints.get("travelers") or 0)` |
+| `semantic_node → final_response` au lieu de `semantic_node → orchestrator` | Bug câblage builder.py session précédente | Fix edge dans builder.py |
+| `MongoActivityService` non trouvé | `mongodb_activity_service.py` n'avait que des fonctions module-level, pas de classe | Ajout wrapper `class MongoActivityService` en bas du fichier |
+
+---
+
+#### Tests End-to-End (2026-06-13)
+
+| Scénario | Intent | User | Destination | Résultat |
+|----------|--------|------|-------------|----------|
+| 1 — Sousse culturel | `activity_recommendation` | USER RÉEL (voyageur actif) | Sousse (hôtel) | ✅ PASS |
+| 2 — Djerba famille | `activity_recommendation` | USER NATIF | Djerba (mentionnée) | ✅ PASS |
+| 3 — Hammamet day_planning | `day_planning` | USER NATIF | Hammamet | ✅ PASS |
+
+**Résultat global : 3/3 PASS, 15/15 checks**
+
+---
+
 ## Bugs Connus / TODO (par priorité)
 1. **`llm_service.py` crash à l'import** — `"Bearer " + os.getenv("OLLAMA_API_KEY")` plante si `OLLAMA_API_KEY` est `None`
 2. **`.env` syntaxe bash** — les lignes `export OLLAMA_API_KEY=...` et `export OLLAMA_BASE_URL=...` utilisent la syntaxe bash, ignorée par python-dotenv
@@ -1295,8 +1493,8 @@ final_response :
 4. **`OLLAMA_BASE_URL` incorrecte** — défaut `"https://ollama.com"` au lieu d'un vrai endpoint API
 5. **`context_merger_node.py` mutation d'état** — mute l'état en place et retourne l'état entier ; devrait retourner uniquement `{"merged_context": merged}`
 6. **`main.py` clé incorrecte** — `result.get("constraints", {})` mais les contraintes sont dans `result["intent_result"]["constraints"]`
-7. **Routage conditionnel désactivé** — `clarification_checker` va toujours vers `final_response` ; les appels `add_conditional_edges` sont commentés dans `builder.py`
-8. **Nodes de recommandation vides** — `hotel_node.py`, `flight_node.py`, `restaurant_node.py`, `activity_node.py`, `orchestrator_node.py` non implémentés
+7. ~~**Routage conditionnel désactivé**~~ ✅ Résolu (2026-06-08) — `orchestrator_node` câblé, fan-out conditionnel actif dans `builder.py`
+8. ~~**`activity_node.py` stub**~~ ✅ Résolu (2026-06-13) — two-source (InternalActivityService + MongoActivityService), ThreadPoolExecutor, rapidfuzz dedup, 3/3 PASS
 
 ---
 

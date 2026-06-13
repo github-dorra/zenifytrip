@@ -11,6 +11,9 @@ class GraphState(TypedDict):
     travellerId:         Optional[str]
     user_type:           Optional[str]   # "real" | "native"
 
+    # ── Géolocalisation (optionnel — fourni par le client mobile) ─
+    user_geolocation:    Optional[Dict[str, Any]]  # {lat, lng} ou None
+
     # ── Message utilisateur ───────────────────────────────────────
     user_message:        str
     normalized_message:  Optional[str]
@@ -97,6 +100,7 @@ def build_initial_state(
         "user_id":           user_id,
         "travellerId":       travellerId,
         "user_type":         None,
+        "user_geolocation":  None,
 
         # Message
         "normalized_message":   None,

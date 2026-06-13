@@ -22,7 +22,6 @@ class ContextMergerNode(BaseNode):
         intent_result = state.get("intent_result", {})
         profile_data = state.get("profile_data", {})
         previous_merged = state.get("merged_context", {})
-
         # -----------------------------
         # SAFE extraction
         # -----------------------------
@@ -47,10 +46,48 @@ class ContextMergerNode(BaseNode):
         if new_destination: merged["destination"] = new_destination
 
         # -----------------------------
+        # DESTINATION depuis hôtel profil (L1 adresse dict, L2 nom hôtel)
+        # availability_checker vient après — on lit profile_data directement ici
+        # -----------------------------
+        if not merged.get("destination"):
+            try:
+                from app.services.availability_service import _extract_destination_from_hotel
+                geolocation = state.get("user_geolocation")
+                accommodations = profile_data.get("accommodations") or []
+                if accommodations:
+                    active = next(
+                        (a for a in accommodations if a.get("status") not in ("Cancelled",)),
+                        accommodations[0],
+                    )
+                    hotel_info = active.get("hotel") or {}
+                    if hotel_info.get("name"):
+                        merged["hotel_name"] = hotel_info["name"]
+                    dest = _extract_destination_from_hotel(hotel_info, geolocation)
+                    if dest:
+                        merged["destination"]        = dest
+                        merged["destination_source"] = "hotel_profile"
+            except Exception as e:
+                self.logger.warning(f"[ContextMerger] hotel dest extraction: {e}")
+
+        # Dates de voyage depuis profil (outbound/return)
+        if not merged.get("start_date"):
+            merged["start_date"] = (
+                profile_data.get("outboundDate")
+                or profile_data.get("outbound_date")
+                or profile_availability.get("departure_date")
+            )
+        if not merged.get("end_date"):
+            merged["end_date"] = (
+                profile_data.get("returnDate")
+                or profile_data.get("return_date")
+                or profile_availability.get("return_date")
+            )
+
+        # -----------------------------
         # TRAVELERS — preserve si valeur explicite > 1 déjà connue
         # -----------------------------
-        new_travelers = constraints.get("travelers", 1)
-        prev_travelers = merged.get("travelers", 1)
+        new_travelers = int(constraints.get("travelers") or 0)
+        prev_travelers = int(merged.get("travelers") or 0)
         if new_travelers > 1:
             merged["travelers"] = new_travelers
         elif prev_travelers > 1:
@@ -123,17 +160,17 @@ class ContextMergerNode(BaseNode):
         )
 
         # -----------------------------
-        # DATES — preserve si rien de nouveau
+        # DATES — contraintes explicites écrasent le profil
         # -----------------------------
-        new_start    = constraints.get("start_date")    or profile_availability.get("departure_date")
-        new_end      = constraints.get("end_date")      or profile_availability.get("return_date")
+        new_start    = constraints.get("start_date")
+        new_end      = constraints.get("end_date")
         new_duration = constraints.get("duration_days") or profile_availability.get("duration_days")
         new_nat_date = constraints.get("natural_date_text")
 
-        if new_start:    merged["start_date"]        = new_start
-        if new_end:      merged["end_date"]           = new_end
-        if new_duration: merged["duration_days"]      = new_duration
-        if new_nat_date: merged["natural_date_text"]  = new_nat_date
+        if new_start:    merged["start_date"]       = new_start
+        if new_end:      merged["end_date"]          = new_end
+        if new_duration: merged["duration_days"]     = new_duration
+        if new_nat_date: merged["natural_date_text"] = new_nat_date
 
         # -----------------------------
         # INTENT (ONLY ONCE HERE)

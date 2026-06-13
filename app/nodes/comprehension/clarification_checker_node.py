@@ -28,10 +28,11 @@ class ClarificationCheckerNode(BaseNode):
         
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
 
-        context = state.get("merged_context") or {}
-        primary_intent = context.get("primary_intent")
-        action_type = context.get("action_type")
-        user_type = state.get("user_type", "native")
+        context             = state.get("merged_context") or {}
+        availability_result = state.get("availability_result") or {}
+        primary_intent      = context.get("primary_intent")
+        action_type         = context.get("action_type")
+        user_type           = state.get("user_type", "native")
 
         # =========================
         # 1. SAFE MISSING DETECTION
@@ -50,7 +51,14 @@ class ClarificationCheckerNode(BaseNode):
         # =========================
         # 2. REQUIRED LOGIC
         # =========================
-        required_fields = self.REQUIRED_FIELDS_BY_ACTION.get(action_type, [])
+        required_fields = list(self.REQUIRED_FIELDS_BY_ACTION.get(action_type, []))
+
+        # Si le voyage est actif OU destination déjà résolue depuis l'hôtel
+        # → ne pas bloquer le pipeline pour la demander
+        trip_is_ongoing = availability_result.get("trip_is_ongoing", False)
+        has_hotel_dest  = bool(context.get("destination") and context.get("destination_source") == "hotel_profile")
+        if trip_is_ongoing or has_hotel_dest:
+            required_fields = [f for f in required_fields if f != "destination"]
 
         missing_required = [
             f for f in required_fields
