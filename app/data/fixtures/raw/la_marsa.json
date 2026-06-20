@@ -1,0 +1,19 @@
+{
+  "city": "La Marsa",
+  "total": 10,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "la_marsa_1", "name": "Marche Centrale de La Marsa", "name_fr": "Marché Central de La Marsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Points of Interest & Landmarks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 118, "osm_tags": {}},
+    {"id": "la_marsa_2", "name": "La Corniche La Marsa", "name_fr": "La Corniche de La Marsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 21, "osm_tags": {}},
+    {"id": "la_marsa_3", "name": "Palais Abdelia", "name_fr": "Palais Abdelia", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "la_marsa_4", "name": "Kallisti Spa", "name_fr": "Kallisti Spa", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Spas", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 37, "osm_tags": {}},
+    {"id": "la_marsa_5", "name": "Bubble Chill", "name_fr": "Bubble Chill", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Libraries", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.9, "tripadvisor_reviews": 51, "osm_tags": {}},
+    {"id": "la_marsa_6", "name": "Parc Saada", "name_fr": "Parc Saada", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.3, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "la_marsa_7", "name": "Keren Yeshua Synagogue", "name_fr": "Synagogue Keren Yeshua", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "la_marsa_8", "name": "Efesto Salon des Artistes", "name_fr": "Efesto Salon des Artistes", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Art Galleries", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 4, "osm_tags": {}},
+    {"id": "la_marsa_9", "name": "Golf The Residence Tunis", "name_fr": "Golf The Residence Tunis", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Golf Courses", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.8, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "la_marsa_10", "name": "Palais Essaada", "name_fr": "Palais Essaada", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 1, "osm_tags": {}}
+  ]
+}

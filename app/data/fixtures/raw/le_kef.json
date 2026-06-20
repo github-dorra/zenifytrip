@@ -1,0 +1,17 @@
+{
+  "city": "Le Kef",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "le_kef_1", "name": "Kasbah of Le Kef", "name_fr": "Kasbah du Kef", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Castles", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 9, "osm_tags": {}},
+    {"id": "le_kef_2", "name": "Musee Des Arts Et Traditions Populaires Le Kef", "name_fr": "Musée des Arts et Traditions Populaires du Kef", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "le_kef_3", "name": "Basilique Ancienne Le Kef", "name_fr": "Basilique Ancienne du Kef", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 5, "osm_tags": {}},
+    {"id": "le_kef_4", "name": "Synagogue de Kef", "name_fr": "Synagogue du Kef", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 3, "osm_tags": {}},
+    {"id": "le_kef_5", "name": "Baths Romains du Kef", "name_fr": "Thermes Romains du Kef", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 6, "osm_tags": {}},
+    {"id": "le_kef_6", "name": "Jama El Kbir Le Kef", "name_fr": "Jama El Kbir - Grande Mosquée du Kef", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 4, "osm_tags": {}},
+    {"id": "le_kef_7", "name": "Dougga UNESCO Site Day Trip", "name_fr": "Site UNESCO de Dougga - Excursion", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.9, "tripadvisor_reviews": 120, "osm_tags": {}},
+    {"id": "le_kef_8", "name": "Viewpoint Le Kef Algeria Border", "name_fr": "Point de Vue - Le Kef vers l'Algérie", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Scenic Walking Areas", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.3, "tripadvisor_reviews": 8, "osm_tags": {}}
+  ]
+}

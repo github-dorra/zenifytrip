@@ -2,8 +2,8 @@ from typing import Dict, Any, Literal, Optional,List
 
 from app.schemas.intent_schema import TravelConstraints, IntentClassifierOutput, PrimaryIntent, SecondaryIntent, ActionType, LanguageCode
 from app.nodes.core.Base_node import BaseNode
-from app.nodes.definitions import INTENT_CLASSIFIER_CONFIG
-from app.prompts.comprehension.intent_classifier_prompt import INTENT_CLASSIFIER_PROMPT
+from app.config.definitions import INTENT_CLASSIFIER_CONFIG
+from app.prompts.intent_classifier_prompt import INTENT_CLASSIFIER_PROMPT
 from app.nodes.utility.json_parser import parse_json_safely
 
 

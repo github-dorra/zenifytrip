@@ -30,10 +30,32 @@ class RestaurantNodeA(BaseNode):
         hotel_id        = (profile_data.get("travel_preferences") or {}).get("hotel_id")
 
         suggestion_mode = state.get("suggestion_mode") or "exploratory"
-
         max_candidates  = 15 if suggestion_mode == "exploratory" else 10
 
-        # ── 2. APPEL SERVICE ─────────────────────────────────────────
+        # ── 2. STRATÉGIE DE RECHERCHE ────────────────────────────────
+        PROXIMITY_KEYWORDS = {"nearbyRestaurant", "walkingDistance", "hotelRestaurant", "aroundMe"}
+        wants_proximity = bool(set(global_keywords) & PROXIMITY_KEYWORDS)
+
+        if wants_proximity and hotel_id:
+            coords = RestaurantServiceA.get_hotel_coords(hotel_id)
+            if coords:
+                search_strategy = {"mode": "nearby", "target_query": None,
+                                   "reference_coords": coords, "radius_km": 2.0,
+                                   "require_diversity": False}
+            else:
+                search_strategy = {"mode": "destination" if destination else "exploratory",
+                                   "target_query": None, "reference_coords": None,
+                                   "radius_km": None, "require_diversity": True}
+        elif destination:
+            search_strategy = {"mode": "destination", "target_query": None,
+                               "reference_coords": None, "radius_km": None,
+                               "require_diversity": True}
+        else:
+            search_strategy = {"mode": "exploratory", "target_query": None,
+                               "reference_coords": None, "radius_km": None,
+                               "require_diversity": True}
+
+        # ── 3. APPEL SERVICE ─────────────────────────────────────────
         try:
             raw_candidates, benchmark = RestaurantServiceA.get_restaurant_candidates(
                 semantic_query=semantic_query,
@@ -41,8 +63,7 @@ class RestaurantNodeA(BaseNode):
                 destination=destination,
                 budget_level=budget_level,
                 is_family=is_family,
-                hotel_id=hotel_id,
-                suggestion_mode=suggestion_mode,
+                search_strategy=search_strategy,
                 max_candidates=max_candidates,
             )
         except Exception as e:

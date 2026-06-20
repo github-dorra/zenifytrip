@@ -1,0 +1,16 @@
+{
+  "city": "Kebili",
+  "total": 7,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "kebili_1", "name": "Ancienne Kebili", "name_fr": "Ancienne Kébili", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "kebili_2", "name": "Oasis de Kebili", "name_fr": "Oasis de Kébili - Palmeraie", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Gardens", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 28, "osm_tags": {}},
+    {"id": "kebili_3", "name": "Sebkha de Kebili", "name_fr": "Sebkha de Kébili", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 7, "osm_tags": {}},
+    {"id": "kebili_4", "name": "Ranch Nomade Day Tours", "name_fr": "Ranch Nomade - Tours en Chevaux", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Equestrian Trails", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "kebili_5", "name": "Toomana Tours Desert", "name_fr": "Toomana Tours - Désert", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Hiking & Camping Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 5, "osm_tags": {}},
+    {"id": "kebili_6", "name": "Foret de Palmiers Kebili", "name_fr": "Forêt de Palmiers de Kébili", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Forests", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 12, "osm_tags": {}},
+    {"id": "kebili_7", "name": "Camel Ride Kebili Sahara", "name_fr": "Randonnée à Dos de Chameau - Kébili", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Nature & Wildlife Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 18, "osm_tags": {}}
+  ]
+}

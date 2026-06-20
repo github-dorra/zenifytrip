@@ -69,6 +69,7 @@ class GraphState(TypedDict):
     # ── Recommandation — post-processing ─────────────────────────
     candidates:    List[Dict[str, Any]]   # fusion tous domaines
     ranked_results: List[Dict[str, Any]]  # après ranking_node
+    total_ranked:   int                   # nombre de candidats classés
     recommendations: Dict[str, Any]       # après recommendation_composer
     itinerary:     Dict[str, Any]         # après day_planner_node
 
@@ -154,6 +155,7 @@ def build_initial_state(
         # Post-processing
         "candidates":       [],
         "ranked_results":   [],
+        "total_ranked":     0,
         "recommendations":  {},
         "itinerary":        {},
 

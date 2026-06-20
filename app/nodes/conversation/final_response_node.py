@@ -1,8 +1,8 @@
 from typing import Dict, Any 
 from app.nodes.core.Base_node import BaseNode 
-from app.prompts.conversation.final_response_prompt import RESPONSE_AGENT_PROMPT
-from app.nodes.definitions import RESPONSE_CONFIG
-from app.graph.state import GraphState as state
+from app.prompts.final_response_prompt import RESPONSE_AGENT_PROMPT
+from app.config.definitions import RESPONSE_CONFIG
+from app.graph.state import GraphState 
 from app.schemas.reponse_schema import (ResponseAgentOutput,PrimaryIntent)
 from app.nodes.utility.json_parser import parse_json_safely
 
@@ -34,7 +34,7 @@ class FinalResponseNode(BaseNode):
         )
 
         constraints = (
-            state.get("constraints")
+            merged_context.get("constraints")
             or {}
         )
 
@@ -149,8 +149,7 @@ class FinalResponseNode(BaseNode):
                 clarification_question
                 if clarification_needed
                 else (
-                    "Je peux vous aider "
-                    "à organiser votre voyage ✈️"
+                    "Je peux vous aider à organiser votre voyage ✈️"
                 )
             )
 
@@ -167,7 +166,6 @@ class FinalResponseNode(BaseNode):
         # =====================================================
 
         return {
-            **state,
 
             "response_agent_result":
                 output.model_dump(),

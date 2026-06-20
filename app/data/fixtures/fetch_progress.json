@@ -1,0 +1,92 @@
+{
+  "last_updated": "2026-06-09",
+  "source": "tripadvisor",
+  "total_files": 39,
+  "tiers": {
+    "tier_1": {
+      "status": "complete",
+      "cities": [
+        {"city": "djerba", "file": "raw/djerba.json", "count": 12, "status": "done"},
+        {"city": "sousse", "file": "raw/sousse.json", "count": 19, "status": "done"},
+        {"city": "tunis", "file": "raw/tunis.json", "count": 12, "status": "done"},
+        {"city": "hammamet", "file": "raw/hammamet.json", "count": 12, "status": "done"},
+        {"city": "tabarka", "file": "raw/tabarka.json", "count": 8, "status": "done"},
+        {"city": "tozeur", "file": "raw/tozeur.json", "count": 15, "status": "done"},
+        {"city": "monastir", "file": "raw/monastir.json", "count": 12, "status": "done"},
+        {"city": "mahdia", "file": "raw/mahdia.json", "count": 20, "status": "done"},
+        {"city": "sfax", "file": "raw/sfax.json", "count": 14, "status": "done"},
+        {"city": "kairouan", "file": "raw/kairouan.json", "count": 12, "status": "done"},
+        {"city": "bizerte", "file": "raw/bizerte.json", "count": 12, "status": "done"},
+        {"city": "nabeul", "file": "raw/nabeul.json", "count": 10, "status": "done"}
+      ]
+    },
+    "tier_2": {
+      "status": "complete",
+      "cities": [
+        {"city": "sidi_bou_said", "file": "raw/sidi_bou_said.json", "count": 10, "status": "done"},
+        {"city": "la_marsa", "file": "raw/la_marsa.json", "count": 10, "status": "done"},
+        {"city": "carthage", "file": "raw/carthage.json", "count": 12, "status": "done"},
+        {"city": "douz", "file": "raw/douz.json", "count": 8, "status": "done"},
+        {"city": "matmata", "file": "raw/matmata.json", "count": 8, "status": "done"},
+        {"city": "tataouine", "file": "raw/tataouine.json", "count": 10, "status": "done"},
+        {"city": "nefta", "file": "raw/nefta.json", "count": 8, "status": "done"},
+        {"city": "ain_draham", "file": "raw/ain_draham.json", "count": 9, "status": "done"},
+        {"city": "gafsa", "file": "raw/gafsa.json", "count": 10, "status": "done"},
+        {"city": "sbeitla", "file": "raw/sbeitla.json", "count": 7, "status": "done"},
+        {"city": "kelibia", "file": "raw/kelibia.json", "count": 8, "status": "done"},
+        {"city": "gabes", "file": "raw/gabes.json", "count": 10, "status": "done"},
+        {"city": "zarzis", "file": "raw/zarzis.json", "count": 9, "status": "done"},
+        {"city": "el_haouaria", "file": "raw/el_haouaria.json", "count": 8, "status": "done"},
+        {"city": "korba", "file": "raw/korba.json", "count": 7, "status": "done"},
+        {"city": "kebili", "file": "raw/kebili.json", "count": 7, "status": "done"}
+      ]
+    },
+    "tier_3": {
+      "status": "complete",
+      "cities": [
+        {"city": "le_kef", "file": "raw/le_kef.json", "count": 8, "status": "done"},
+        {"city": "dougga", "file": "raw/dougga.json", "count": 10, "status": "done"},
+        {"city": "la_goulette", "file": "raw/la_goulette.json", "count": 8, "status": "done"},
+        {"city": "medenine", "file": "raw/medenine.json", "count": 8, "status": "done"},
+        {"city": "menzel_bourguiba", "file": "raw/menzel_bourguiba.json", "count": 7, "status": "done"},
+        {"city": "sidi_bouzid", "file": "raw/sidi_bouzid.json", "count": 6, "status": "done"},
+        {"city": "kasserine", "file": "raw/kasserine.json", "count": 8, "status": "done"},
+        {"city": "jendouba", "file": "raw/jendouba.json", "count": 9, "status": "done"},
+        {"city": "siliana", "file": "raw/siliana.json", "count": 7, "status": "done"},
+        {"city": "ariana", "file": "raw/ariana.json", "count": 8, "status": "done"},
+        {"city": "ben_arous", "file": "raw/ben_arous.json", "count": 7, "status": "done"}
+      ]
+    }
+  },
+  "summary": {
+    "tier_1_count": 12,
+    "tier_2_count": 16,
+    "tier_3_count": 11,
+    "total_cities": 39,
+    "total_activities": 513,
+    "all_complete": true
+  },
+  "coverage": {
+    "regions": [
+      "Grand Tunis (Tunis, Carthage, Sidi Bou Said, La Marsa, La Goulette, Ariana, Ben Arous)",
+      "Cap Bon (Hammamet, Nabeul, Kelibia, El Haouaria, Korba)",
+      "Sahel (Sousse, Monastir, Mahdia)",
+      "Sfax et Sud-Est (Sfax, Gabes, Zarzis, Medenine)",
+      "Sahara (Tozeur, Nefta, Douz, Kebili, Gafsa)",
+      "Desert du Sud (Tataouine, Matmata)",
+      "Nord-Ouest (Tabarka, Ain Draham, Bizerte, Menzel Bourguiba, Jendouba)",
+      "Centre (Kairouan, Sbeitla, Le Kef, Dougga, Kasserine, Siliana, Sidi Bouzid)",
+      "Sud-Est insulaire (Djerba)"
+    ],
+    "top_rated_sites": [
+      "Dougga (UNESCO) — 4.9 / 395 reviews",
+      "Amphitheatre d'El Jem — 4.8 / 1487 reviews",
+      "Bardo Museum Tunis — 4.6 / 1507 reviews",
+      "Uthina Oudhna — 4.7 / 58 reviews",
+      "Chott El Jerid — 4.5 / 478 reviews",
+      "Great Mosque of Kairouan — 4.4 / 597 reviews",
+      "Bulla Regia — 4.5 / 91 reviews",
+      "Carthage Site Archeologique — 4.2 / 1014 reviews"
+    ]
+  }
+}

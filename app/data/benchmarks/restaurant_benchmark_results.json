@@ -1,29 +1,29 @@
 {
-  "benchmark_date": "2026-06-07T12:09:00",
+  "benchmark_date": "2026-06-10T13:59:21",
   "benchmark_version": "1.0",
   "total_scenarios": 6,
   "summary": {
     "A": {
-      "total_candidates": 58,
-      "avg_latency_ms": 1361,
+      "total_candidates": 60,
+      "avg_latency_ms": 1237,
       "total_cost_usd": 0.0,
       "total_tokens": 0,
       "scenarios_won": 6,
       "hallucination_pct": 0
     },
     "B": {
-      "total_candidates": 14,
-      "avg_latency_ms": 4397,
-      "total_cost_usd": 0.00428,
-      "total_tokens": 9151,
+      "total_candidates": 0,
+      "avg_latency_ms": 185,
+      "total_cost_usd": 0.0,
+      "total_tokens": 0,
       "scenarios_won": 0,
       "hallucination_pct": 46
     },
     "C": {
-      "total_candidates": 26,
-      "avg_latency_ms": 7607,
-      "total_cost_usd": 0.00777,
-      "total_tokens": 11938,
+      "total_candidates": 0,
+      "avg_latency_ms": 3308,
+      "total_cost_usd": 0.0,
+      "total_tokens": 0,
       "scenarios_won": 0,
       "hallucination_pct": 0
     }
@@ -34,134 +34,209 @@
       "scenario": "1 — Sousse | seafood | medium",
       "A": {
         "candidates": 10,
-        "latency_ms": 1629,
+        "latency_ms": 1393,
+        "tavily_ms": 0,
+        "completeness_pct": 65.6,
         "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 100.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.44,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "B": {
-        "candidates": 3,
-        "latency_ms": 2149,
-        "has_rating_pct": 100.0,
+        "candidates": 0,
+        "latency_ms": 596,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.000997
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       },
       "C": {
-        "candidates": 4,
-        "latency_ms": 8238,
-        "has_rating_pct": 40.0,
+        "candidates": 0,
+        "latency_ms": 7763,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.00128
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       }
     },
     {
       "scenario": "2 — Djerba | famille | medium",
       "A": {
         "candidates": 10,
-        "latency_ms": 1229,
+        "latency_ms": 1548,
+        "tavily_ms": 0,
+        "completeness_pct": 66.7,
         "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 100.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.55,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "B": {
-        "candidates": 3,
-        "latency_ms": 1608,
-        "has_rating_pct": 100.0,
+        "candidates": 0,
+        "latency_ms": 143,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.000975
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       },
       "C": {
-        "candidates": 7,
-        "latency_ms": 5626,
-        "has_rating_pct": 42.9,
+        "candidates": 0,
+        "latency_ms": 4974,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001479
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       }
     },
     {
       "scenario": "3 — Tunis | cuisine locale | medium",
       "A": {
         "candidates": 10,
-        "latency_ms": 1247,
+        "latency_ms": 917,
+        "tavily_ms": 0,
+        "completeness_pct": 65.6,
         "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 100.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.4333,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "B": {
-        "candidates": 3,
-        "latency_ms": 7681,
-        "has_rating_pct": 100.0,
+        "candidates": 0,
+        "latency_ms": 79,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       },
       "C": {
-        "candidates": 4,
-        "latency_ms": 8066,
+        "candidates": 0,
+        "latency_ms": 1891,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
         "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001158
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       }
     },
     {
       "scenario": "4 — Exploratory | pas de destination",
       "A": {
         "candidates": 10,
-        "latency_ms": 1141,
+        "latency_ms": 1400,
+        "tavily_ms": 0,
+        "completeness_pct": 64.4,
         "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 100.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.45,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "B": {
-        "candidates": 3,
-        "latency_ms": 6702,
-        "has_rating_pct": 100.0,
+        "candidates": 0,
+        "latency_ms": 87,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001001
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       },
       "C": {
-        "candidates": 3,
-        "latency_ms": 7531,
+        "candidates": 0,
+        "latency_ms": 1587,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
         "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001029
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       }
     },
     {
       "scenario": "5 — Destination inconnue | fallback",
       "A": {
-        "candidates": 7,
-        "latency_ms": 1143,
+        "candidates": 10,
+        "latency_ms": 973,
+        "tavily_ms": 0,
+        "completeness_pct": 76.7,
         "has_rating_pct": 100.0,
+        "has_price_level_pct": 80.0,
         "has_coords_pct": 100.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.46,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "B": {
         "candidates": 0,
-        "latency_ms": 2712,
+        "latency_ms": 77,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
         "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "C": {
         "candidates": 0,
-        "latency_ms": 7897,
+        "latency_ms": 2416,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
         "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
         "cost_usd": 0.0
       }
     },
@@ -169,27 +244,42 @@
       "scenario": "6 — Monastir | luxury romantique",
       "A": {
         "candidates": 10,
-        "latency_ms": 1269,
+        "latency_ms": 1191,
+        "tavily_ms": 0,
+        "completeness_pct": 68.9,
         "has_rating_pct": 100.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 100.0,
         "has_reason_pct": 0.0,
+        "avg_score": 0.28,
+        "tokens": 0,
         "cost_usd": 0.0
       },
       "B": {
-        "candidates": 3,
-        "latency_ms": 4833,
-        "has_rating_pct": 100.0,
+        "candidates": 0,
+        "latency_ms": 127,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
+        "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001037
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       },
       "C": {
-        "candidates": 3,
-        "latency_ms": 7694,
+        "candidates": 0,
+        "latency_ms": 1216,
+        "tavily_ms": 0,
+        "completeness_pct": 0.0,
         "has_rating_pct": 0.0,
+        "has_price_level_pct": 0.0,
         "has_coords_pct": 0.0,
-        "has_reason_pct": 100.0,
-        "cost_usd": 0.001008
+        "has_reason_pct": 0.0,
+        "avg_score": 0.0,
+        "tokens": 0,
+        "cost_usd": 0.0
       }
     }
   ]

@@ -1,0 +1,15 @@
+{
+  "city": "Sidi Bouzid",
+  "total": 6,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "sidi_bouzid_1", "name": "Bou-Hedma National Park", "name_fr": "Parc National de Bou-Hedma", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "National Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "sidi_bouzid_2", "name": "Jebel Mghilla National Park", "name_fr": "Parc National de Jebel Mghilla", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "National Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "sidi_bouzid_3", "name": "Place Mohamed Bouazizi", "name_fr": "Place Mohamed Bouazizi", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 12, "osm_tags": {}},
+    {"id": "sidi_bouzid_4", "name": "Monument Printemps Arabe Sidi Bouzid", "name_fr": "Monument du Printemps Arabe", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Monuments & Statues", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "sidi_bouzid_5", "name": "Oasis de Sidi Bouzid", "name_fr": "Oasis de Sidi Bouzid", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Gardens", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 5, "osm_tags": {}},
+    {"id": "sidi_bouzid_6", "name": "Musee Regional Sidi Bouzid", "name_fr": "Musée Régional de Sidi Bouzid", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "History Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.2, "tripadvisor_reviews": 3, "osm_tags": {}}
+  ]
+}

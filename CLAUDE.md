@@ -257,7 +257,6 @@ app/
 │   │   │   ├── data_merger_node.py
 │   │   │   ├── ranking_node.py
 │   │   │   ├── day_planner_node.py
-│   │   │   └── recommendation_composer_node.py
 │   │   └── context/
 │   │       ├── semantic_node.py
 │   │       └── availability_checker_node.py
@@ -1486,15 +1485,223 @@ user_geolocation: Optional[Dict[str, Any]]  # {lat: float, lng: float} | None
 
 ---
 
+### VERSION 4 — Ranking Node ✓ (session 2026-06-13)
+
+**Objectif de la session :** Implémenter `ranking_node` (scoring 70% user / 30% business), externaliser les poids dans `settings.py`, câbler dans le pipeline.
+
+#### Nouvelles implémentations
+
+| Fichier | Statut | Rôle |
+|---------|--------|------|
+| `app/config/settings.py` | ✅ Mis à jour | Ajout `USER_SCORE_WEIGHT=0.70` + `BUSINESS_SCORE_WEIGHT=0.30` — surchargeables via `.env` |
+| `app/schemas/ranking_schema.py` | ✅ Nouveau | `RankedCandidate` + `RankingOutput` Pydantic v2 |
+| `app/nodes/recommendation/postprocessing/ranking_node.py` | ✅ Implémenté | Node Python pur (technique, pas LLM) — calcule `ranked_score`, trie, assigne `rank` |
+| `app/graph/state.py` | ✅ Mis à jour | Ajout `total_ranked: int` |
+| `app/graph/builder.py` | ✅ Mis à jour | `data_merger → ranking_node → final_response` (à la place de data_merger → final_response) |
+
+#### Architecture RankingNode
+
+```
+RankingNode.run(state)
+    │
+    ├── lit candidates (sortie data_merger — liste de dicts multi-domaines)
+    │
+    ├── pour chaque candidat :
+    │   ├── _user_score()     : priorité user_score > match_score > final_score > score > 0.5
+    │   └── _business_score() : priorité champ explicite > tier/source mapping
+    │
+    ├── ranked_score = USER_SCORE_WEIGHT × user_score + BUSINESS_SCORE_WEIGHT × business_score
+    │
+    ├── tri global par ranked_score DESC
+    │
+    └── assigne rank: 1, 2, 3...
+        retourne ranked_results + total_ranked
+```
+
+#### Mapping tier → business_score par défaut
+
+| Tier / Source | business_score |
+|---------------|---------------|
+| `partner` | 0.85 |
+| `agency` / `internal` | 0.80 |
+| `catalogue` | 0.45 |
+| `external` / `mongodb` | 0.20 |
+| (inconnu) | 0.50 |
+
+#### Poids configurables (settings.py)
+
+```python
+USER_SCORE_WEIGHT     = float(os.getenv("USER_SCORE_WEIGHT",     "0.70"))
+BUSINESS_SCORE_WEIGHT = float(os.getenv("BUSINESS_SCORE_WEIGHT", "0.30"))
+```
+
+> Pour modifier les poids sans toucher au code : ajouter `USER_SCORE_WEIGHT=0.6` et `BUSINESS_SCORE_WEIGHT=0.4` dans `.env`.
+
+#### Topologie graphe VERSION 4
+
+```
+START → [greeting] + [session_bootstrap]              ← fan-out parallèle
+      → [intent_classifier] + [profile_loader]        ← fan-out parallèle
+      → [context_merge] → [availability_checker] → [clarification_checker]
+      → (conditionnel) weather_node OU final_response
+      → [weather_node] → [semantic_node] → [orchestrator]
+      → (fan-out conditionnel) hotel_node | flight_node | restaurant_node | activity_node
+      → (fan-in) [data_merger] → [ranking_node] → [final_response] → END
+```
+
+#### À faire avant tests end-to-end
+
+- [ ] Implémenter `day_planner_node` (prend `ranked_results`, génère itinéraire jour/jour)
+- [ ] Implémenter `recommendation_composer_node` (formate les recommandations finales)
+- [ ] Câbler `ranking_node → day_planner_node → recommendation_composer_node → final_response`
+- [ ] Test end-to-end Phase 1→4 complet avec ranking
+
+---
+
+---
+
+### VERSION 5 — Agent de Réponse Recommandation + Corrections Architecturales (session 2026-06-13)
+
+**Objectif de la session :** Séparer l'agent de réponse finale en deux agents distincts selon la nature du chemin (clarification vs recommandation), et corriger les bugs critiques identifiés par analyse complète du code.
+
+#### Nouvelles implémentations
+
+| Fichier | Statut | Rôle |
+|---------|--------|------|
+| `app/prompts/recommendation/recommendation_response_prompt.py` | ✅ Nouveau | Prompt de présentation des recommandations réelles |
+| `app/nodes/recommendation/postprocessing/recommendation_response_node.py` | ✅ Nouveau | Agent 2 — présente les candidats en langage naturel, enrichit avec sa connaissance si liste vide |
+| `app/nodes/definitions.py` | ✅ Corrigé | Ajout `RECOMMENDATION_RESPONSE_CONFIG` ; fix modèles invalides (`openai/gpt-oss-120b` → `llama-3.3-70b-versatile`) pour `SEMANTIC_CONFIG` et `RESPONSE_CONFIG` ; suppression import mort `from logging import config` |
+| `app/graph/builder.py` | ✅ Mis à jour | Pipeline complet : `data_merger → constraint_validator → ranking_node → recommendation_response → END` |
+
+#### Architecture Deux Agents de Réponse
+
+```
+clarification_checker
+    │
+    ├── next_action = "ask_clarification"  OU  primary_intent in (greeting, unsupported)
+    │       ↓
+    │   [final_response_node]          ← Agent 1 (existant, inchangé)
+    │   • prompt conversationnel court
+    │   • inputs : merged_context, missing_fields, clarification_question
+    │   • output : question naturelle ou réponse générale
+    │       ↓ END
+    │
+    └── next_action = "continue"
+            ↓
+       weather → semantic → orchestrator
+            ↓ (fan-out domaines)
+    hotel | flight | restaurant | activity
+            ↓ (fan-in)
+      [data_merger]
+            ↓
+   [constraint_validator]              ← filtre durs (déjà réservé, capacité épuisée, budget)
+            ↓
+      [ranking_node]                   ← scoring 70% user + 30% business, assigne rank
+            ↓
+   [recommendation_response_node]     ← Agent 2 (nouveau)
+   • prompt orienté présentation
+   • inputs : ranked_results, merged_context, user_type, suggestion_mode, language
+   • top 3-4 candidats présentés en langage naturel
+   • si candidates vide → LLM répond avec sa connaissance Tunisie (jamais "pas de résultats")
+            ↓ END
+
+orchestrator → [] (travel_question, unsupported, etc.)
+            ↓
+   [final_response_node]              ← Agent 1 aussi pour les intents conversationnels
+            ↓ END
+```
+
+#### Règle critique — Candidates vides
+
+Si `candidates = []`, `recommendation_response_node` **ne dit jamais "pas de résultats"**. Le LLM utilise sa connaissance de la Tunisie pour recommander des vrais endroits connus selon la destination et l'intent. Seule exception : si la destination est totalement inconnue → demande de clarification.
+
+#### Topologie graphe VERSION 5 (finale)
+
+```
+START → [greeting] + [session_bootstrap]
+      → [intent_classifier] + [profile_loader]
+      → [context_merge] → [availability_checker] → [clarification_checker]
+      → (conditionnel)
+          ├── ask_clarification / greeting / unsupported → [final_response] → END
+          └── continue → [weather_node] → [semantic_node] → [orchestrator]
+                             ↓ (fan-out conditionnel)
+                hotel | flight | restaurant | activity
+                             ↓ (fan-in)
+                       [data_merger]
+                             ↓
+                  [constraint_validator]
+                             ↓
+                       [ranking_node]
+                             ↓
+               [recommendation_response] → END
+```
+
+#### Nodes implémentés — État complet
+
+| Node | Fichier | Statut | Câblé |
+|------|---------|--------|-------|
+| `greeting` | `nodes/conversation/greeting_node.py` | ✅ | ✅ |
+| `session_bootstrap` | `nodes/core/session_bootstrap.py` | ✅ | ✅ |
+| `intent_classifier` | `nodes/comprehension/intent_classifier_node.py` | ✅ | ✅ |
+| `profile_loader` | `nodes/user_profile/profile_loader_node.py` | ✅ | ✅ |
+| `context_merge` | `nodes/merge/context_merger_node.py` | ✅ | ✅ |
+| `availability_checker` | `nodes/recommendation/context/availability_checker_node.py` | ✅ | ✅ |
+| `clarification_checker` | `nodes/comprehension/clarification_checker_node.py` | ✅ | ✅ |
+| `weather_node` | `nodes/Logistics/weather_node.py` | ✅ | ✅ |
+| `semantic_node` | `nodes/recommendation/context/semantic_node.py` | ✅ | ✅ |
+| `orchestrator` | `nodes/recommendation/orchestration/orchestrator_node.py` | ✅ | ✅ |
+| `hotel_node` | `nodes/recommendation/domain/hotel_node.py` | ✅ | ✅ |
+| `flight_node` | `nodes/recommendation/domain/flight_node.py` | ✅ | ✅ |
+| `restaurant_node` | `nodes/recommendation/domain/restaurant_node.py` | ✅ | ✅ |
+| `activity_node` | `nodes/recommendation/domain/activity_node.py` | ✅ | ✅ |
+| `data_merger` | `nodes/recommendation/postprocessing/data_merger_node.py` | ✅ | ✅ |
+| `constraint_validator` | `nodes/recommendation/postprocessing/constraint_validator_node.py` | ✅ | ✅ |
+| `ranking_node` | `nodes/recommendation/postprocessing/ranking_node.py` | ✅ | ✅ |
+| `final_response` | `nodes/conversation/final_response_node.py` | ✅ | ✅ |
+| `recommendation_response` | `nodes/recommendation/postprocessing/recommendation_response_node.py` | ✅ | ✅ |
+
+#### Nodes PAS encore implémentés
+
+| Node | Fichier | Phase | Priorité | Description |
+|------|---------|-------|----------|-------------|
+| `day_planner_node` | `nodes/recommendation/postprocessing/day_planner_node.py` | 4 | Haute | Génère un itinéraire jour/jour depuis `ranked_results` (matin → après-midi → soir) — LLM Groq |
+| `recommendation_composer_node` | `nodes/recommendation/postprocessing/recommendation_composer_node.py` | 4 | Moyenne | Formate les recommandations en structure JSON riche — remplacé fonctionnellement par `recommendation_response_node` |
+| `profile_writer_node` | `nodes/user_profile/profile_writer_node.py` | 5 | Moyenne | Met à jour le profil voyageur selon le feedback implicite (clics, acceptations) |
+| `feedback_logger_node` | `nodes/shared/feedback_logger_node.py` | 5 | Moyenne | Enregistre les interactions (aimé / ignoré / rejeté) pour apprentissage continu |
+| `error_handler_node` | `nodes/shared/error_handler_node.py` | Transverse | Basse | Centralize la gestion d'erreurs du pipeline — actuellement gérée par BaseNode.fallback() |
+| `profile_cache_reader_node` | `nodes/user_profile/profile_cache_reader_node.py` | 1 | Basse | Lecture profil depuis cache local — redondant avec profile_loader + cache_service |
+
+> `recommendation_composer_node` est fonctionnellement remplacé par `recommendation_response_node` (Agent 2). Le fichier peut rester vide.
+
+#### Bugs Critiques identifiés (analyse session 2026-06-13)
+
+| # | Fichier | Bug | Sévérité |
+|---|---------|-----|----------|
+| 1 | `llm_service.py:21` | `"Bearer " + None` → crash si OLLAMA_API_KEY absente | 🔴 |
+| 2 | `definitions.py` | ~~modèles `openai/gpt-oss-120b` invalides chez Groq~~ | ✅ Corrigé |
+| 3 | `base_node.py:116` | `metrics_patch` construit mais jamais inclus dans le return | 🔴 |
+| 4 | `final_response_node.py:170` | `return {**state, ...}` — viole règle LangGraph | 🔴 |
+| 5 | `final_response_node.py:37` | `state.get("constraints")` clé inexistante dans GraphState | 🔴 |
+| 6 | `main.py:65` | `state.update(result)` après append history → écrase les nouveaux messages | 🔴 |
+| 7 | `main.py` | État initial incomplet (node_metrics manquant, utiliser `build_initial_state()`) | 🟠 |
+| 8 | `profile_loader_node.py:49` | Destination = nom aéroport (pas une ville) → matching zones échoue | 🟠 |
+| 9 | `profile_loader_node.py:55` | `accommodations[0]` sans filtre statut → peut prendre une réservation annulée | 🟠 |
+| 10 | `availability_service.py:218` | `if not results:` — dead code, branche jamais atteinte | 🟠 |
+
+---
+
 ## Bugs Connus / TODO (par priorité)
 1. **`llm_service.py` crash à l'import** — `"Bearer " + os.getenv("OLLAMA_API_KEY")` plante si `OLLAMA_API_KEY` est `None`
 2. **`.env` syntaxe bash** — les lignes `export OLLAMA_API_KEY=...` et `export OLLAMA_BASE_URL=...` utilisent la syntaxe bash, ignorée par python-dotenv
-3. **ProfileService async** — `get_traveller_profile` est `async` mais appelée de façon synchrone dans ProfileLoaderNode — retourne une coroutine, pas les données
+3. ~~**ProfileService async**~~ ✅ Résolu — `get_traveller_profile` est déjà synchrone (`requests.get`)
 4. **`OLLAMA_BASE_URL` incorrecte** — défaut `"https://ollama.com"` au lieu d'un vrai endpoint API
-5. **`context_merger_node.py` mutation d'état** — mute l'état en place et retourne l'état entier ; devrait retourner uniquement `{"merged_context": merged}`
-6. **`main.py` clé incorrecte** — `result.get("constraints", {})` mais les contraintes sont dans `result["intent_result"]["constraints"]`
+5. ~~**`context_merger_node.py` mutation d'état**~~ ✅ Résolu — retourne uniquement `{"merged_context": merged}`
+6. **`main.py` état incomplet** — utiliser `build_initial_state()` au lieu du dict manuel ; `state.update(result)` écrase l'historique
 7. ~~**Routage conditionnel désactivé**~~ ✅ Résolu (2026-06-08) — `orchestrator_node` câblé, fan-out conditionnel actif dans `builder.py`
-8. ~~**`activity_node.py` stub**~~ ✅ Résolu (2026-06-13) — two-source (InternalActivityService + MongoActivityService), ThreadPoolExecutor, rapidfuzz dedup, 3/3 PASS
+8. ~~**`activity_node.py` stub**~~ ✅ Résolu (2026-06-13) — two-source, ThreadPoolExecutor, rapidfuzz dedup, 3/3 PASS
+9. ~~**`ranking_node.py` manquant**~~ ✅ Résolu (2026-06-13) — node Python pur, poids 70/30 dans settings.py
+10. ~~**`definitions.py` modèles invalides**~~ ✅ Résolu (2026-06-13) — `llama-3.3-70b-versatile` partout
+11. **`final_response_node.py`** — `return {**state, ...}` viole règle LangGraph + clé `constraints` inexistante
 
 ---
 

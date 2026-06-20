@@ -19,6 +19,10 @@ FLIGHTS_API_URL = os.getenv("FLIGHTS_API_URL")
 AIRPORTS_API_URL = os.getenv("AIRPORTS_API_URL")
 AIRLINES_API_URL = os.getenv("AIRLINES_API_URL")
 
+# --- Activity recommendation
+BOOKINGS_API_URL = os.getenv("BOOKINGS_API_URL")
+ACTIVITIES_API_URL = os.getenv("ACTIVITIES_API_URL")
+
 
 
 # --- Logistics
@@ -29,3 +33,11 @@ GOOGLE_MAPS_BASE_URL= os.getenv("GOOGLE_MAPS_BASE_URL")
 
 # --- Restaurant Approach C
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+# --- MongoDB Atlas
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DB  = os.getenv("MONGODB_DB", "zenifytrip")
+
+# --- Ranking weights (doivent sommer à 1.0)
+USER_SCORE_WEIGHT     = float(os.getenv("USER_SCORE_WEIGHT",     "0.70"))
+BUSINESS_SCORE_WEIGHT = float(os.getenv("BUSINESS_SCORE_WEIGHT", "0.30"))

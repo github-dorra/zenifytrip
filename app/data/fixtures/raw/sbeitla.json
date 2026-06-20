@@ -1,0 +1,16 @@
+{
+  "city": "Sbeitla",
+  "total": 7,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "sbeitla_1", "name": "Sbeitla Roman Ruins (Sufetula)", "name_fr": "Ruines Romaines de Sbeitla (Sufetula)", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.7, "tripadvisor_reviews": 77, "osm_tags": {}},
+    {"id": "sbeitla_2", "name": "Archaeological Museum Sbeitla", "name_fr": "Musée Archéologique de Sbeitla", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "History Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "sbeitla_3", "name": "Archaeological site of Sbeitla Forum", "name_fr": "Forum Archéologique de Sbeitla", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "sbeitla_4", "name": "Temples du Capitole de Sbeitla", "name_fr": "Temples du Capitole de Sbeitla", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 30, "osm_tags": {}},
+    {"id": "sbeitla_5", "name": "Haidra Ruins", "name_fr": "Ruines d'Haidra", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 11, "osm_tags": {}},
+    {"id": "sbeitla_6", "name": "Basilique de Bellator", "name_fr": "Basilique de Bellator - Sbeitla", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "sbeitla_7", "name": "Festival International de Sbeitla", "name_fr": "Festival International de Sbeitla", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Music Festivals", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.3, "tripadvisor_reviews": 5, "osm_tags": {}}
+  ]
+}

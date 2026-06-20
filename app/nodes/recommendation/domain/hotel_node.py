@@ -1,7 +1,9 @@
 import logging
+import math
 from typing import Dict, Any, List, Optional, Tuple
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.services.hotel_service import HotelService
+from app.data.tunisia_destinations import city_to_iata, get_airport_coords
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,13 @@ class HotelNode(BaseNode):
         travel_prefs     = profile_data.get("travel_preferences") or {}
         current_hotel_id = travel_prefs.get("hotel_id") if user_type == "real" else None
 
+        # Coordonnées de référence de la destination (pour distance_km)
+        dest_coords = None
+        if destination:
+            iata = city_to_iata(destination)
+            if iata:
+                dest_coords = get_airport_coords(iata)
+
         # --------------------------------------------------
         # 2. TIER 1 — partenaires (1 seul appel)
         # --------------------------------------------------
@@ -100,6 +109,7 @@ class HotelNode(BaseNode):
             global_keywords=global_keywords,
             is_family=is_family,
             tier="partner",
+            dest_coords=dest_coords,
         )
 
         # --------------------------------------------------
@@ -126,6 +136,7 @@ class HotelNode(BaseNode):
                     global_keywords=global_keywords,
                     is_family=is_family,
                     tier="catalogue",
+                    dest_coords=dest_coords,
                 )
 
             except Exception as e:
@@ -165,6 +176,7 @@ class HotelNode(BaseNode):
         global_keywords: List[str],
         is_family: bool,
         tier: str,
+        dest_coords: Optional[Tuple[float, float]] = None,
     ) -> List[Dict]:
 
         stars_range = self.BUDGET_STARS.get(budget_level) if budget_level else None
@@ -198,6 +210,13 @@ class HotelNode(BaseNode):
             zone_name      = zones.get(zone_id, "")
             coordinates    = self._parse_coordinates(hotel.get("coordinates"))
 
+            distance_km = None
+            if dest_coords and coordinates:
+                distance_km = self._haversine(
+                    coordinates["lat"], coordinates["lng"],
+                    dest_coords[0], dest_coords[1],
+                )
+
             business_score = self._compute_business_score(hotel_services, tier)
             user_score     = self._compute_user_score(
                 hotel=hotel,
@@ -223,6 +242,7 @@ class HotelNode(BaseNode):
                 "score":             final_score,
                 "business_score":    round(business_score, 4),
                 "user_score":        round(user_score, 4),
+                "distance_km":       distance_km,
             })
 
         return result
@@ -339,13 +359,22 @@ class HotelNode(BaseNode):
     # HELPERS
     # =========================================================
 
+    @staticmethod
+    def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+        R = 6371.0
+        p1, p2 = math.radians(lat1), math.radians(lat2)
+        dp = math.radians(lat2 - lat1)
+        dl = math.radians(lng2 - lng1)
+        a  = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        return round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)), 1)
+
     def _parse_coordinates(self, raw: Any) -> Optional[Dict[str, float]]:
         try:
             if not raw or not isinstance(raw, dict):
                 return None
             coords = raw.get("coordinates", [])
             if isinstance(coords, list) and len(coords) == 2:
-                return {"lat": coords[0], "lng": coords[1]}
+                return {"lat": coords[1], "lng": coords[0]}  # GeoJSON: [lng, lat]
         except Exception:
             pass
         return None

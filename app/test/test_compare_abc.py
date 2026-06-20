@@ -210,15 +210,22 @@ def run():
 
         # ── A : Google Places (appel à froid) ────────────────────────
         cache.invalidate_prefix("rest_")  # vider le cache de service pour simuler un appel à froid
+        _dest = (state.get("merged_context") or {}).get("destination")
+        _search_strategy = {
+            "mode":              "destination" if _dest else "exploratory",
+            "target_query":      None,
+            "reference_coords":  None,
+            "radius_km":         None,
+            "require_diversity": True,
+        }
         t0 = time.time()
         _, bench_a = RestaurantServiceA.get_restaurant_candidates(
             semantic_query=state.get("semantic_query") or "",
             global_keywords=state.get("global_keywords") or [],
-            destination=(state.get("merged_context") or {}).get("destination"),
+            destination=_dest,
             budget_level=(state.get("merged_context") or {}).get("budget_level"),
             is_family=(state.get("merged_context") or {}).get("is_family", False),
-            hotel_id=((state.get("profile_data") or {}).get("travel_preferences") or {}).get("hotel_id"),
-            suggestion_mode=state.get("suggestion_mode") or "exploratory",
+            search_strategy=_search_strategy,
             max_candidates=10,
         )
         lat_a   = int((time.time() - t0) * 1000)

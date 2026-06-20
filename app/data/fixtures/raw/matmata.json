@@ -1,0 +1,17 @@
+{
+  "city": "Matmata",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "matmata_1", "name": "Casas Trogloditas de Matmata", "name_fr": "Maisons Troglodytes de Matmata", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 25, "osm_tags": {}},
+    {"id": "matmata_2", "name": "Hotel Sidi Driss Star Wars Set", "name_fr": "Hôtel Sidi Driss - Décor Star Wars", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 230, "osm_tags": {}},
+    {"id": "matmata_3", "name": "Matmata Welcome Sign", "name_fr": "Panneau de Bienvenue de Matmata", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Points of Interest & Landmarks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 7, "osm_tags": {}},
+    {"id": "matmata_4", "name": "Escale de Toujane", "name_fr": "Escale de Toujane", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality & Gift Shops", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 83, "osm_tags": {}},
+    {"id": "matmata_5", "name": "Dar Khadija Museum", "name_fr": "Musée Dar Khadija", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "matmata_6", "name": "Musee Berbere de Tamezret", "name_fr": "Musée Berbère de Tamezret", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.7, "tripadvisor_reviews": 51, "osm_tags": {}},
+    {"id": "matmata_7", "name": "Village Berbere de Tamezret", "name_fr": "Village Berbère de Tamezret", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Neighborhoods", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 35, "osm_tags": {}},
+    {"id": "matmata_8", "name": "Matmata Aventures", "name_fr": "Matmata Aventures", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Sightseeing Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 3, "osm_tags": {}}
+  ]
+}

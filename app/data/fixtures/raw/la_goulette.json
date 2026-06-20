@@ -1,0 +1,17 @@
+{
+  "city": "La Goulette",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "la_goulette_1", "name": "Port La Goulette", "name_fr": "Port de La Goulette", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Points of Interest & Landmarks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 2.2, "tripadvisor_reviews": 19, "osm_tags": {}},
+    {"id": "la_goulette_2", "name": "Kasbah La Goulette", "name_fr": "Kasbah de La Goulette", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 12, "osm_tags": {}},
+    {"id": "la_goulette_3", "name": "Beit Mordekhai Synagogue", "name_fr": "Synagogue Beit Mordekhai", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "la_goulette_4", "name": "Mosquee Abu Bakr As-Siddiq", "name_fr": "Mosquée Abu Bakr As-Siddiq", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "la_goulette_5", "name": "Plage La Goulette", "name_fr": "Plage de La Goulette", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "la_goulette_6", "name": "Cera Pottery Club La Goulette", "name_fr": "Cera Pottery Club", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Paint & Pottery Studios", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 2, "osm_tags": {}},
+    {"id": "la_goulette_7", "name": "Cruise Shore Excursion La Goulette", "name_fr": "Excursion depuis La Goulette (croisière)", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Cultural Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "la_goulette_8", "name": "La Goulette Corniche Seafood", "name_fr": "Corniche de La Goulette - Restaurants de Fruits de Mer", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Scenic Walking Areas", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 15, "osm_tags": {}}
+  ]
+}

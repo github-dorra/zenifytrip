@@ -1,0 +1,18 @@
+{
+  "city": "Ain Draham",
+  "total": 9,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "ain_draham_1", "name": "Ain Draham Forest", "name_fr": "Forêt de Kroumirie - Ain Draham", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Forests", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 42, "osm_tags": {}},
+    {"id": "ain_draham_2", "name": "Thermal Springs Ain Draham", "name_fr": "Sources Thermales d'Ain Draham", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Spas & Wellness", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 18, "osm_tags": {}},
+    {"id": "ain_draham_3", "name": "Bulla Regia Archaeological Site", "name_fr": "Site Archéologique de Bulla Regia", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.3, "tripadvisor_reviews": 67, "osm_tags": {}},
+    {"id": "ain_draham_4", "name": "Mosquee Al-Fateh Ain Draham", "name_fr": "Mosquée Al-Fateh Ain Draham", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "ain_draham_5", "name": "Eco Explore Ain Drahem", "name_fr": "Eco Explore Ain Draham", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bike Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "ain_draham_6", "name": "Hiking Kroumirie Mountains", "name_fr": "Randonnée dans les Montagnes de Kroumirie", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Hiking Trails", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 25, "osm_tags": {}},
+    {"id": "ain_draham_7", "name": "Lac de Ain Draham", "name_fr": "Lac de Ain Draham", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 12, "osm_tags": {}},
+    {"id": "ain_draham_8", "name": "Ain Draham Old Village", "name_fr": "Vieux Village d'Ain Draham", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Neighborhoods", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 15, "osm_tags": {}},
+    {"id": "ain_draham_9", "name": "Hammam Bourguiba Spa", "name_fr": "Hammam Bourguiba Spa", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Spas", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 5, "osm_tags": {}}
+  ]
+}

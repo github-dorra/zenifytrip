@@ -2,7 +2,7 @@ import re
 from typing import Dict, Any, List
 
 from app.nodes.core.Base_node import BaseNode
-from app.nodes.definitions import RESTAURANT_B_CONFIG
+from app.config.definitions import RESTAURANT_B_CONFIG
 from app.prompts.recommendation.restaurant_b_prompt import RESTAURANT_B_PROMPT
 from app.nodes.utility.json_parser import parse_json_safely
 from app.schemas.restaurant_schema import RestaurantCandidate

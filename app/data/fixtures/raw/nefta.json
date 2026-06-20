@@ -1,0 +1,17 @@
+{
+  "city": "Nefta",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "nefta_1", "name": "La Corbeille de Nefta", "name_fr": "La Corbeille de Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 44, "osm_tags": {}},
+    {"id": "nefta_2", "name": "Oasis de Nefta", "name_fr": "Oasis de Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.3, "tripadvisor_reviews": 95, "osm_tags": {}},
+    {"id": "nefta_3", "name": "Zaouia Sidi Ibrahim", "name_fr": "Zaouia Sidi Ibrahim", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 12, "osm_tags": {}},
+    {"id": "nefta_4", "name": "Medina de Nefta", "name_fr": "Médina de Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Neighborhoods", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 28, "osm_tags": {}},
+    {"id": "nefta_5", "name": "Star Wars Mos Espa Nefta", "name_fr": "Mos Espa Star Wars - Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 89, "osm_tags": {}},
+    {"id": "nefta_6", "name": "Chott El Jerid at Nefta", "name_fr": "Chott El Jérid - côté Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Deserts", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 120, "osm_tags": {}},
+    {"id": "nefta_7", "name": "Grande Mosque of Nefta", "name_fr": "Grande Mosquée de Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "nefta_8", "name": "Sand Dunes of Nefta", "name_fr": "Dunes de Sable de Nefta", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Deserts", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 55, "osm_tags": {}}
+  ]
+}

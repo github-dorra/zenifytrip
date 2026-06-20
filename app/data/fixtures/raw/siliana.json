@@ -1,0 +1,16 @@
+{
+  "city": "Siliana",
+  "total": 7,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "siliana_1", "name": "Table de Jugurtha", "name_fr": "Table de Jugurtha - Kef Siliana", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 15, "osm_tags": {}},
+    {"id": "siliana_2", "name": "Site Antique de Zama", "name_fr": "Site Antique de Zama - Bataille d'Hannibal", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 6, "osm_tags": {}},
+    {"id": "siliana_3", "name": "Pheradi Maius Roman Ruins Siliana", "name_fr": "Ruines Romaines de Pheradi Maius", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "siliana_4", "name": "Jama Roman Site Siliana", "name_fr": "Site Romain de Jama", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "siliana_5", "name": "Ain Babouch Thermal Springs Siliana", "name_fr": "Sources Thermales d'Ain Babouch", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Spas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 3, "osm_tags": {}},
+    {"id": "siliana_6", "name": "Mosquee Fatima Zahra Siliana", "name_fr": "Mosquée Fatima Zahra - Siliana", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "siliana_7", "name": "Foret Siliana Randonnee", "name_fr": "Forêt de Siliana - Randonnée", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Forests", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.7, "tripadvisor_reviews": 4, "osm_tags": {}}
+  ]
+}

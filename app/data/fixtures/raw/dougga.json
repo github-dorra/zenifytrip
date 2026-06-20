@@ -1,0 +1,19 @@
+{
+  "city": "Dougga",
+  "total": 10,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "dougga_1", "name": "Dougga Roman Ruins (UNESCO)", "name_fr": "Ruines Romaines de Dougga (UNESCO)", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.9, "tripadvisor_reviews": 395, "osm_tags": {}},
+    {"id": "dougga_2", "name": "Capitolium Di Dougga", "name_fr": "Capitole de Dougga", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "dougga_3", "name": "Teatro Romano Di Dougga", "name_fr": "Théâtre Romain de Dougga", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "dougga_4", "name": "Mausoleo Punico-Libico Dougga", "name_fr": "Mausolée Punique-Libique de Dougga", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "dougga_5", "name": "Terme Liciniane Dougga", "name_fr": "Thermes Liciniennes de Dougga", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "dougga_6", "name": "Arco Di Alessandro Severo Dougga", "name_fr": "Arc d'Alexandre Sévère - Dougga", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "dougga_7", "name": "Ain Tounga Byzantine Ruins", "name_fr": "Ruines Byzantine d'Ain Tounga", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.7, "tripadvisor_reviews": 15, "osm_tags": {}},
+    {"id": "dougga_8", "name": "Great Mosque of Testour", "name_fr": "Grande Mosquée de Testour", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 13, "osm_tags": {}},
+    {"id": "dougga_9", "name": "Bulla Regia Underground Villas", "name_fr": "Bulla Regia - Villas Souterraines", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 55, "osm_tags": {}},
+    {"id": "dougga_10", "name": "Musti Ancient City", "name_fr": "Ancienne Ville de Musti", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 5, "osm_tags": {}}
+  ]
+}

@@ -33,6 +33,10 @@ class RestaurantServiceA:
 
     @staticmethod
     def get_hotel_coords(hotel_id: Optional[str]) -> Optional[Tuple[float, float]]:
+        """
+        Retourne (lat, lng) d'un hôtel.
+        Priorité : coordonnées GeoJSON API → géocodage adresse (fallback).
+        """
         if not hotel_id:
             return None
         try:
@@ -42,7 +46,11 @@ class RestaurantServiceA:
             partner_hotels, _ = HotelService.get_partner_hotels()
             for hotel in partner_hotels:
                 if str(hotel.get("id", "")) == str(hotel_id):
-                    coords = RestaurantServiceA._parse_raw_coords(hotel.get("coordinates"))
+                    d = RestaurantServiceA._parse_raw_coords(hotel.get("coordinates"))
+                    if d:
+                        return (d["lat"], d["lng"])
+                    # Fallback : géocodage par adresse
+                    coords = RestaurantServiceA._geocode_address(hotel.get("address") or "")
                     if coords:
                         return coords
 
@@ -50,7 +58,10 @@ class RestaurantServiceA:
             all_hotels = HotelService.get_all_hotels()
             for hotel in all_hotels:
                 if str(hotel.get("id", "")) == str(hotel_id):
-                    coords = RestaurantServiceA._parse_raw_coords(hotel.get("coordinates"))
+                    d = RestaurantServiceA._parse_raw_coords(hotel.get("coordinates"))
+                    if d:
+                        return (d["lat"], d["lng"])
+                    coords = RestaurantServiceA._geocode_address(hotel.get("address") or "")
                     if coords:
                         return coords
 
@@ -59,15 +70,44 @@ class RestaurantServiceA:
         return None
 
     @staticmethod
-    def _parse_raw_coords(raw: Any) -> Optional[Tuple[float, float]]:
+    def _parse_raw_coords(raw: Any) -> Optional[Dict[str, float]]:
+        """Parse un champ GeoJSON coordinates → {"lat": ..., "lng": ...}. None si absent."""
         try:
             if not raw or not isinstance(raw, dict):
                 return None
             coords = raw.get("coordinates", [])
             if isinstance(coords, list) and len(coords) == 2:
-                return (float(coords[0]), float(coords[1]))
+                return {"lat": float(coords[1]), "lng": float(coords[0])}  # GeoJSON: [lng, lat]
         except Exception:
             pass
+        return None
+
+    @staticmethod
+    def _geocode_address(address: str) -> Optional[Tuple[float, float]]:
+        """Géocode une adresse via Google Geocoding API. Résultat mis en cache 24h."""
+        if not address:
+            return None
+
+        cache_key = f"geocode_{hashlib.md5(address.lower().encode()).hexdigest()[:10]}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            url    = f"{PLACES_API_BASE}/geocode/json"
+            params = {"address": address, "key": GOOGLE_MAPS_API_KEY}
+            resp   = requests.get(url, params=params, timeout=RestaurantServiceA.TIMEOUT)
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            if results:
+                loc = results[0].get("geometry", {}).get("location", {})
+                lat, lng = loc.get("lat"), loc.get("lng")
+                if lat is not None and lng is not None:
+                    coords = (float(lat), float(lng))
+                    cache.set(cache_key, coords, SimpleTTLCache.TTL_HOTELS)
+                    return coords
+        except Exception as e:
+            logger.warning(f"RestaurantServiceA._geocode_address [{address}]: {e}")
         return None
 
     # ------------------------------------------------------------------
@@ -413,72 +453,105 @@ class RestaurantServiceA:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _apply_diversity(candidates: List[Dict], max_count: int) -> List[Dict]:
+        """
+        Diversifie les résultats en évitant de répéter le même profil de cuisine.
+        Prend le meilleur candidat de chaque groupe cuisine avant de compléter.
+        """
+        seen_types: set = set()
+        diverse: List[Dict] = []
+        remaining: List[Dict] = []
+
+        for c in candidates:
+            key = tuple(sorted(c.get("cuisine_types") or []))
+            if key not in seen_types:
+                seen_types.add(key)
+                diverse.append(c)
+            else:
+                remaining.append(c)
+            if len(diverse) >= max_count:
+                break
+
+        if len(diverse) < max_count:
+            diverse.extend(remaining[: max_count - len(diverse)])
+
+        return diverse
+
+    @staticmethod
     def get_restaurant_candidates(
         semantic_query: str,
         global_keywords: List[str],
         destination: Optional[str],
         budget_level: Optional[str],
         is_family: bool,
-        hotel_id: Optional[str],
-        suggestion_mode: str,
+        search_strategy: Dict,
         max_candidates: int = 10,
     ) -> Tuple[List[Dict], Dict]:
         """
-        Tier 1 : Nearby Search si coords hôtel disponibles (USER RÉEL)
-        Tier 2 : Text Search sinon (USER NATIF ou fallback)
+        Exécute la stratégie de recherche construite par RestaurantNode.
 
-        Retourne (candidats_scorés, benchmark_dict).
+        search_strategy contient :
+          mode              : "nearby" | "destination" | "exploratory"
+          reference_coords  : (lat, lng) — mode nearby uniquement
+          radius_km         : float — mode nearby uniquement
+          require_diversity : bool — activer la diversification cuisine
         """
+        mode             = search_strategy.get("mode", "exploratory")
+        reference_coords = search_strategy.get("reference_coords")
+        radius_km        = float(search_strategy.get("radius_km") or 2.0)
+        require_diversity= search_strategy.get("require_diversity", False)
+
         benchmark = {
             "api_calls_google": 0,
             "cache_hits":       0,
-            "search_mode":      "none",
+            "search_mode":      mode,
             "latency_api_ms":   0,
         }
 
         raw: List[Dict] = []
 
-        # ── TIER 1 — Nearby Search ────────────────────────────────────
-        coords = RestaurantServiceA.get_hotel_coords(hotel_id)
-        if coords:
-            lat, lng = coords
+        # ── NEARBY — proximity explicitement demandée ──────────────────
+        if mode == "nearby" and reference_coords:
+            lat, lng = reference_coords
 
             t0 = time.time()
             results, calls = RestaurantServiceA.search_nearby(
-                lat, lng, semantic_query, radius_m=2000, max_results=max_candidates,
+                lat, lng, semantic_query,
+                radius_m=int(radius_km * 1000),
+                max_results=max_candidates,
             )
-            benchmark["latency_api_ms"] += int((time.time() - t0) * 1000)
+            benchmark["latency_api_ms"]   += int((time.time() - t0) * 1000)
             benchmark["api_calls_google"] += calls
             if calls == 0:
                 benchmark["cache_hits"] += 1
 
-            # Élargir à 5km si moins de 3 résultats
+            # Élargir à 5km si résultats insuffisants
             if len(results) < 3:
                 t0 = time.time()
                 results, calls = RestaurantServiceA.search_nearby(
-                    lat, lng, semantic_query, radius_m=5000, max_results=max_candidates,
+                    lat, lng, semantic_query,
+                    radius_m=5000,
+                    max_results=max_candidates,
                 )
-                benchmark["latency_api_ms"] += int((time.time() - t0) * 1000)
+                benchmark["latency_api_ms"]   += int((time.time() - t0) * 1000)
                 benchmark["api_calls_google"] += calls
                 if calls == 0:
                     benchmark["cache_hits"] += 1
 
-            raw         = results
-            benchmark["search_mode"] = "nearby"
+            raw = results
 
-        # ── TIER 2 — Text Search ──────────────────────────────────────
+        # ── DESTINATION / EXPLORATORY — text search ────────────────────
         if not raw:
             query = semantic_query or f"restaurants {destination or 'tunisie'}"
             t0 = time.time()
             results, calls = RestaurantServiceA.search_by_text(query, max_results=max_candidates)
-            benchmark["latency_api_ms"] += int((time.time() - t0) * 1000)
+            benchmark["latency_api_ms"]   += int((time.time() - t0) * 1000)
             benchmark["api_calls_google"] += calls
             if calls == 0:
                 benchmark["cache_hits"] += 1
-            raw                      = results
-            benchmark["search_mode"] = "text_search"
+            raw = results
 
-        # ── Score + tri ───────────────────────────────────────────────
+        # ── Score ──────────────────────────────────────────────────────
         for candidate in raw:
             sc, crit = RestaurantServiceA.score(
                 candidate, global_keywords, budget_level, is_family,
@@ -487,6 +560,11 @@ class RestaurantServiceA:
             candidate["matched_criteria"] = crit
 
         raw.sort(key=lambda x: x["match_score"], reverse=True)
-        top = raw[:max_candidates]
+
+        # ── Diversité ─────────────────────────────────────────────────
+        if require_diversity:
+            top = RestaurantServiceA._apply_diversity(raw, max_candidates)
+        else:
+            top = raw[:max_candidates]
 
         return top, benchmark

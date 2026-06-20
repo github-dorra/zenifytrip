@@ -1,0 +1,16 @@
+{
+  "city": "Menzel Bourguiba",
+  "total": 7,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "menzel_bourguiba_1", "name": "Lac de Bizerte Menzel Bourguiba", "name_fr": "Lac de Bizerte - Menzel Bourguiba", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 7, "osm_tags": {}},
+    {"id": "menzel_bourguiba_2", "name": "Arsenal Naval Menzel Bourguiba", "name_fr": "Arsenal Naval Historique - Menzel Bourguiba", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "menzel_bourguiba_3", "name": "Berrahal Roman Site", "name_fr": "Site Archéologique de Berrahal", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "menzel_bourguiba_4", "name": "Plage Menzel Bourguiba", "name_fr": "Plage de Menzel Bourguiba", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 4, "osm_tags": {}},
+    {"id": "menzel_bourguiba_5", "name": "Bordj Selouk Fort", "name_fr": "Fort Bordj Selouk", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Forts", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "menzel_bourguiba_6", "name": "Canal de Tunis Bizerte Menzel", "name_fr": "Canal de Tunis - Bizerte", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Points of Interest & Landmarks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.2, "tripadvisor_reviews": 5, "osm_tags": {}},
+    {"id": "menzel_bourguiba_7", "name": "Parc Municipal Menzel Bourguiba", "name_fr": "Parc Municipal de Menzel Bourguiba", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Parks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 2, "osm_tags": {}}
+  ]
+}

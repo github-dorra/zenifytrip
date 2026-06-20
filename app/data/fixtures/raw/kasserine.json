@@ -1,0 +1,17 @@
+{
+  "city": "Kasserine",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "kasserine_1", "name": "Chambi National Park", "name_fr": "Parc National de Chambi", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "National Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "kasserine_2", "name": "Ancient Ammaedara", "name_fr": "Ruines Romaines d'Ammaedara", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 2, "osm_tags": {}},
+    {"id": "kasserine_3", "name": "Archaeological Site of Cillium", "name_fr": "Site Archéologique de Cillium", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "kasserine_4", "name": "Kasserine Pass Battlefield", "name_fr": "Champ de Bataille du Kasserine Pass", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Military Bases & Facilities", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 4, "osm_tags": {}},
+    {"id": "kasserine_5", "name": "Arc de Triomphe Cillium Kasserine", "name_fr": "Arc de Triomphe de Cillium", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 6, "osm_tags": {}},
+    {"id": "kasserine_6", "name": "Jugurtha's Table Mountain", "name_fr": "Table de Jugurtha", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 15, "osm_tags": {}},
+    {"id": "kasserine_7", "name": "Musee Archeologique de Kasserine", "name_fr": "Musée Archéologique de Kasserine", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "History Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 7, "osm_tags": {}},
+    {"id": "kasserine_8", "name": "Forêts de Kasserine", "name_fr": "Forêts de Kasserine - Randonnée", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Forests", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 5, "osm_tags": {}}
+  ]
+}

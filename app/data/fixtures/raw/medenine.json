@@ -1,0 +1,17 @@
+{
+  "city": "Medenine",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "medenine_1", "name": "Ksar Hallouf", "name_fr": "Ksar Hallouf", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 23, "osm_tags": {}},
+    {"id": "medenine_2", "name": "Site Archeologique de Gightis", "name_fr": "Site Archéologique de Gightis", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.7, "tripadvisor_reviews": 7, "osm_tags": {}},
+    {"id": "medenine_3", "name": "Ksar Jouamaa", "name_fr": "Ksar Jouamaa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 22, "osm_tags": {}},
+    {"id": "medenine_4", "name": "Ksar Ommarsia", "name_fr": "Ksar Ommarsia", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "medenine_5", "name": "Parc national de Sidi Toui", "name_fr": "Parc National de Sidi Toui", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "National Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "medenine_6", "name": "Moschea di Sidi Ali bin Obeid", "name_fr": "Mosquée Sidi Ali ben Obeid", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "medenine_7", "name": "Ksar Medenine Old Town", "name_fr": "Ksar de Medenine - Vieille Ville", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Neighborhoods", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 18, "osm_tags": {}},
+    {"id": "medenine_8", "name": "Plage Sidi Maklouf Medenine", "name_fr": "Plage Sidi Maklouf", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 5, "osm_tags": {}}
+  ]
+}

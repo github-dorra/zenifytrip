@@ -1,0 +1,19 @@
+{
+  "city": "Gafsa",
+  "total": 10,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "gafsa_1", "name": "La Kasbah de Gafsa", "name_fr": "La Kasbah de Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 3, "osm_tags": {}},
+    {"id": "gafsa_2", "name": "Piscine Romaine de Gafsa", "name_fr": "Piscine Romaine de Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 4, "osm_tags": {}},
+    {"id": "gafsa_3", "name": "Gorges de Selja", "name_fr": "Gorges de Selja", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "gafsa_4", "name": "Le Lezard Rouge de Metlaoui", "name_fr": "Le Lézard Rouge de Metlaoui - Train Touristique", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Scenic Railroads", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 82, "osm_tags": {}},
+    {"id": "gafsa_5", "name": "Musee Archeologique de Gafsa", "name_fr": "Musée Archéologique de Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 2, "osm_tags": {}},
+    {"id": "gafsa_6", "name": "Oasis de Gafsa", "name_fr": "Oasis de Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Gardens", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "gafsa_7", "name": "La Medina Gafsa", "name_fr": "La Médina de Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "gafsa_8", "name": "Dar El Bey Gafsa", "name_fr": "Dar El Bey - Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "gafsa_9", "name": "Great Mosque of Gafsa", "name_fr": "Grande Mosquée de Gafsa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "gafsa_10", "name": "Reserve Naturelle Orbata", "name_fr": "Réserve Naturelle d'Orbata", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Nature & Wildlife Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}}
+  ]
+}

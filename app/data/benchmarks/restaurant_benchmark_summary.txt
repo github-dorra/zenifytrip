@@ -1,13 +1,13 @@
 BENCHMARK RESTAURANT — ZenifyTrip
-Date : 2026-06-07T12:09:00
+Date : 2026-06-10T13:59:21
 Scénarios testés : 6
 
 ═══════════════════════════════════
 RÉSUMÉ PAR APPROCHE :
 
 A — Google Places API (Python pur)
-  Candidats total    : 58
-  Latence moyenne    : 1361ms
+  Candidats total    : 60
+  Latence moyenne    : 1237ms
   Coût total         : $0.00000
   Tokens             : 0
   Scénarios gagnés   : 6/6
@@ -16,20 +16,20 @@ A — Google Places API (Python pur)
   Points faibles     : pas de recommendation_reason, pas de price_level
 
 B — LLM seul (Groq)
-  Candidats total    : 14
-  Latence moyenne    : 4397ms
-  Coût total         : $0.00428
-  Tokens             : 9151
+  Candidats total    : 0
+  Latence moyenne    : 185ms
+  Coût total         : $0.00000
+  Tokens             : 0
   Scénarios gagnés   : 0/6
   Hallucination      : 46%
   Points forts       : recommendation_reason, price_level, avg_score élevé
   Points faibles     : hallucination critique, peu de candidats, lent
 
 C — Tavily + LLM (Groq)
-  Candidats total    : 26
-  Latence moyenne    : 7607ms
-  Coût total         : $0.00777
-  Tokens             : 11938
+  Candidats total    : 0
+  Latence moyenne    : 3308ms
+  Coût total         : $0.00000
+  Tokens             : 0
   Scénarios gagnés   : 0/6
   Hallucination      : ~0%
   Points forts       : recommendation_reason, données réelles, ~0% hallucination
@@ -39,12 +39,12 @@ C — Tavily + LLM (Groq)
 DÉCISION ARCHITECTURALE
 ═══════════════════════════════════
 Approche retenue   : A — Google Places API
-Raison             : volume maximal, données structurées (coords GPS 100%,
-                     ratings 100%), gratuit ($0), ranking_node LLM
-                     en aval génère recommendation_reason
+Raison             : volume maximal (avg 9.5/scénario), données structurées
+                     (coords GPS 100%, ratings 100%), gratuit ($0),
+                     le ranking_node LLM en aval génère recommendation_reason
 Rejet B            : 46% hallucination = inacceptable pour système commercial
 Rejet C seul       : lent, données partielles, fragile (quota Tavily)
-Date de décision   : 2026-06-07
+Date de décision   : 2026-06-10
 
 Fichiers résultats :
   app/data/benchmarks/restaurant_benchmark_results.json

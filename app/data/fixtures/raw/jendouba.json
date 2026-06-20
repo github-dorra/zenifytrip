@@ -1,0 +1,18 @@
+{
+  "city": "Jendouba",
+  "total": 9,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "jendouba_1", "name": "Bulla Regia Underground Villas", "name_fr": "Bulla Regia - Villas Souterraines Romaines", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 91, "osm_tags": {}},
+    {"id": "jendouba_2", "name": "El Feija National Park", "name_fr": "Parc National d'El Feija", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "National Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 2, "osm_tags": {}},
+    {"id": "jendouba_3", "name": "Casa Di Amphitrite Bulla Regia", "name_fr": "Casa di Amphitrite - Bulla Regia", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "jendouba_4", "name": "Casa Della Caccia Bulla Regia", "name_fr": "Casa della Caccia - Bulla Regia", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "jendouba_5", "name": "Dar El Ain Ecotourisme", "name_fr": "Dar El Ain Ecotourisme & Loisirs", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Hiking Trails", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "jendouba_6", "name": "Ain El Baya Roman Site", "name_fr": "Site Romain d'Ain El Baya", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "jendouba_7", "name": "Kroumirie Forest Jendouba", "name_fr": "Forêt de Kroumirie - Jendouba", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Forests", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 20, "osm_tags": {}},
+    {"id": "jendouba_8", "name": "Oued Mellegue Gorges", "name_fr": "Gorges de l'Oued Mellegue", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "jendouba_9", "name": "Balmoree Arts Gallery", "name_fr": "Balmoree Arts - Galerie & Studio", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Art Galleries", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 4, "osm_tags": {}}
+  ]
+}

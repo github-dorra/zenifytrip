@@ -1,0 +1,16 @@
+{
+  "city": "Ben Arous",
+  "total": 7,
+  "fetched_at": "2026-06-09",
+  "tier": 3,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "ben_arous_1", "name": "Uthina Oudhna Archaeological Site", "name_fr": "Oudhna - Site Archéologique d'Uthina", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.7, "tripadvisor_reviews": 58, "osm_tags": {}},
+    {"id": "ben_arous_2", "name": "Amphitheatre d'Uthina Oudhna", "name_fr": "Amphithéâtre d'Uthina - Oudhna", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 22, "osm_tags": {}},
+    {"id": "ben_arous_3", "name": "Lac de Tunis Sud Ben Arous", "name_fr": "Lac de Tunis Sud", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "ben_arous_4", "name": "Parc de Borj Cedria Ben Arous", "name_fr": "Parc de Borj Cedria", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Parks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.4, "tripadvisor_reviews": 5, "osm_tags": {}},
+    {"id": "ben_arous_5", "name": "Hammam Lif Beach", "name_fr": "Plage de Hammam Lif", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.2, "tripadvisor_reviews": 10, "osm_tags": {}},
+    {"id": "ben_arous_6", "name": "Sources Thermales Hammam Lif", "name_fr": "Sources Thermales de Hammam Lif", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Spas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 9, "osm_tags": {}},
+    {"id": "ben_arous_7", "name": "Zaouia Sidi Hsine Ben Arous", "name_fr": "Zaouia de Sidi Hsine Ben Arous", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}}
+  ]
+}

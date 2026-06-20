@@ -1,0 +1,17 @@
+{
+  "city": "El Haouaria",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "el_haouaria_1", "name": "Ghar el Kebir Roman Caves", "name_fr": "Grottes Romaines de Ghar el Kébir", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.4, "tripadvisor_reviews": 21, "osm_tags": {}},
+    {"id": "el_haouaria_2", "name": "Zembra & Zembretta Islands", "name_fr": "Îles Zembra et Zembretta", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Islands", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.9, "tripadvisor_reviews": 8, "osm_tags": {}},
+    {"id": "el_haouaria_3", "name": "Ras Adar Hawarya Diving Center", "name_fr": "Centre de Plongée Ras Adar Hawarya", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Scuba & Snorkelling", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 3, "osm_tags": {}},
+    {"id": "el_haouaria_4", "name": "Falconry Festival El Haouaria", "name_fr": "Festival de la Fauconnerie - El Haouaria", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Cultural Events", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.3, "tripadvisor_reviews": 28, "osm_tags": {}},
+    {"id": "el_haouaria_5", "name": "Cap Bon Cliffs El Haouaria", "name_fr": "Falaises du Cap Bon - El Haouaria", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 18, "osm_tags": {}},
+    {"id": "el_haouaria_6", "name": "Plage El Haouaria", "name_fr": "Plage d'El Haouaria", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 45, "osm_tags": {}},
+    {"id": "el_haouaria_7", "name": "Excursion Falaises et Plages Secretes El Haouaria", "name_fr": "Excursion Falaises et Plages Secrètes", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Canyoning & Rappelling Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "el_haouaria_8", "name": "Snorkeling Crystal Waters El Haouaria", "name_fr": "Snorkeling Eaux Cristallines - El Haouaria", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Scuba & Snorkelling", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.6, "tripadvisor_reviews": 12, "osm_tags": {}}
+  ]
+}

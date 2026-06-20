@@ -1,0 +1,19 @@
+{
+  "city": "Gabes",
+  "total": 10,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "gabes_1", "name": "Oasis de Gabes", "name_fr": "Oasis de Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Gardens", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 65, "osm_tags": {}},
+    {"id": "gabes_2", "name": "Military Museum Of Mareth Line", "name_fr": "Musée Militaire de la Ligne Mareth", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 10, "osm_tags": {}},
+    {"id": "gabes_3", "name": "Nouvelle Mosquee de Jara", "name_fr": "Nouvelle Mosquée de Jara", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "gabes_4", "name": "Petit Jara Gabes", "name_fr": "Petit Jara - Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Neighborhoods", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "gabes_5", "name": "Plage Corniche de Gabes", "name_fr": "Plage Corniche de Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "gabes_6", "name": "Bab El Bhar Synagogue Gabes", "name_fr": "Synagogue Bab El Bhar - Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "gabes_7", "name": "Musee D'Art Et De Traditions Populaires Gabes", "name_fr": "Musée d'Art et de Traditions Populaires - Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "gabes_8", "name": "Eglise de Gabes", "name_fr": "Église de Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Architectural Buildings", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "gabes_9", "name": "Site Zraoua Ancienne", "name_fr": "Site de Zraoua - Ancienne Ville", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 1.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "gabes_10", "name": "Mosque of Sidi Driss Gabes", "name_fr": "Mosquée de Sidi Driss - Gabès", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}}
+  ]
+}

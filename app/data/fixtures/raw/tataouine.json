@@ -1,0 +1,19 @@
+{
+  "city": "Tataouine",
+  "total": 10,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "tataouine_1", "name": "Ksar Ouled Soltane", "name_fr": "Ksar Ouled Soltane", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 88, "osm_tags": {}},
+    {"id": "tataouine_2", "name": "Ksar Ghilane", "name_fr": "Ksar Ghilane", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 195, "osm_tags": {}},
+    {"id": "tataouine_3", "name": "Douiret", "name_fr": "Douiret - Village Berbère", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 6, "osm_tags": {}},
+    {"id": "tataouine_4", "name": "Guermassa Citadel Village", "name_fr": "Village Citadelle de Guermassa", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 2, "osm_tags": {}},
+    {"id": "tataouine_5", "name": "Ksar Beni Barka", "name_fr": "Ksar Beni Barka", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "tataouine_6", "name": "Tataouine Earth Memory Museum", "name_fr": "Musée de la Mémoire de la Terre", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Speciality Museums", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "tataouine_7", "name": "Chenini Village", "name_fr": "Village de Chenini", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 154, "osm_tags": {}},
+    {"id": "tataouine_8", "name": "Ksar Hadada", "name_fr": "Ksar Hadada", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Historic Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.6, "tripadvisor_reviews": 48, "osm_tags": {}},
+    {"id": "tataouine_9", "name": "Galaxy Tours Star Wars", "name_fr": "Galaxy Tours - Sites Star Wars", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Multi-day Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 130, "osm_tags": {}},
+    {"id": "tataouine_10", "name": "Buggy & Bike Desert Tours", "name_fr": "Buggy & Bike - Tours Désert", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "4WD, ATV & Off-Road Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.9, "tripadvisor_reviews": 25, "osm_tags": {}}
+  ]
+}

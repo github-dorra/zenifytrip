@@ -31,7 +31,7 @@ import time
 
 from pydantic import BaseModel, ValidationError
 
-from app.services.llm_service import call_llm
+from app.config.llm_service import call_llm
 from app.services.cache_service import cache
 
 
@@ -44,6 +44,7 @@ def build_logger(name: str):
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
+    logger.propagate = False
     logger.setLevel(logging.INFO)
     return logger
 
@@ -111,11 +112,12 @@ class BaseNode(ABC):
             )
 
             self.logger.info(f"SUCCESS ({duration_ms}ms)")
+            
+            existing_metrics = result.get("node_metrics", [])
 
-            return {
-                
-                **result,
-            }
+            result["node_metrics"] = (existing_metrics + metrics_patch["node_metrics"])
+
+            return result
 
         except Exception as exc:
             duration_ms = int((time.time() - start_time) * 1000)
@@ -145,13 +147,19 @@ class BaseNode(ABC):
         if self.cache_enabled:
             cached = cache.get(cache_key)
             if cached:
+                usage = cached.get("usage", {})
+                self.prompt_tokens += usage.get("prompt_tokens", 0)
+                self.completion_tokens += usage.get("completion_tokens", 0)
+                self.total_tokens += usage.get("total_tokens", 0)
+
                 self.logger.info("LLM CACHE HIT")
                 return {
                     **cached,
                     "cache_hit": True,
                 }
-
-        # CALL LLM (Groq ou Ollama via service central)
+        
+        
+        # CALL LLM (Groq ou Ollama via config/service_llm.py (configuration centralisée))
         response = call_llm(
             prompt=prompt,
             model=self.model,
@@ -168,6 +176,9 @@ class BaseNode(ABC):
         if not isinstance(usage, dict):
             usage = {}
             
+        self.prompt_tokens     += usage.get("prompt_tokens",     0)
+        self.completion_tokens += usage.get("completion_tokens", 0)
+        self.total_tokens      += usage.get("total_tokens",      0)
             
         result = {
             "content": content,
@@ -196,7 +207,7 @@ class BaseNode(ABC):
         text = text.replace("```json", "").replace("```", "").strip()
 
         # extract first valid JSON block
-        match = re.search(r"\{.*\}", text, re.DOTALL)
+        match = re.search(r"\{[\s\S]*\}", text)
 
         if not match:
             raise ValueError(f"No JSON found in response: {text}")
@@ -294,6 +305,7 @@ class BaseNode(ABC):
             "prompt": prompt,
             "provider": self.provider,
             "extra": cache_key_extra,
+            "response_format": str(self.config.response_format),
         }
 
         raw_text = json.dumps(raw, sort_keys=True, ensure_ascii=False)
@@ -312,9 +324,9 @@ class BaseNode(ABC):
         duration_ms: int,
     ) -> Dict[str, Any]:
         previous_errors = state.get("errors", [])
+        previous_metrics = state.get("node_metrics", [])
 
         return { 
-            **state, 
             "errors": previous_errors + [
                 {
                     "node": self.name,
@@ -325,7 +337,7 @@ class BaseNode(ABC):
             ],
             "next_action": "error",
             "final_answer": "Une erreur est survenue. Veuillez réessayer.",
-            "node_metrics": [
+            "node_metrics": previous_metrics + [
                 {
                     "node": self.name,
                     "node_type": self.node_type,

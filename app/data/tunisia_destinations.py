@@ -753,3 +753,26 @@ def get_recommendation_reason(iata: str, travel_month: int) -> str:
 
     return (f"{city} en {month_name} : période correcte pour visiter. "
             f"À voir : {highlight}.")
+
+
+# ----------------------------------------------------------------
+# AIRPORT_COORDS — coordonnées GPS des aéroports tunisiens
+# Source : données publiques OurAirports / AIP Tunisie
+# ----------------------------------------------------------------
+
+AIRPORT_COORDS: dict = {
+    "TUN": (36.851,  10.228),   # Tunis-Carthage
+    "DJE": (33.875,  10.775),   # Djerba-Zarzis
+    "MIR": (35.758,  10.755),   # Monastir Habib Bourguiba
+    "NBE": (36.076,  10.438),   # Enfidha-Hammamet
+    "SUF": (35.730,  10.740),   # Zone Sousse (aéroport Enfidha-Sousse)
+    "SFA": (34.718,  10.690),   # Sfax-Thyna
+    "TOE": (33.939,   8.110),   # Tozeur-Nefta
+    "TBJ": (36.979,   8.877),   # Tabarka-Aïn Draham
+    "GAF": (33.877,  10.103),   # Gabès Matmata
+}
+
+
+def get_airport_coords(iata: str) -> Optional[tuple]:
+    """Retourne (lat, lng) d'un aéroport tunisien. None si code inconnu."""
+    return AIRPORT_COORDS.get((iata or "").upper())

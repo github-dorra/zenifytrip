@@ -17,7 +17,7 @@ KEY FEATURES:
 
 from typing import Dict, Any, List, Optional
 from app.nodes.core.Base_node import BaseNode
-from app.nodes.definitions import SEMANTIC_CONFIG
+from app.config.definitions import SEMANTIC_CONFIG
 from app.prompts.recommendation.semantic_prompt import (
     SEMANTIC_SYSTEM_PROMPT
 )
@@ -123,7 +123,12 @@ class SemanticAgentNode(BaseNode):
                 "foodCourt",
                 "beachFrontEating",
                 "hillviewDining",
-                "fineRestaurant"
+                "fineRestaurant",
+                # Signaux de proximité — déclenchent Nearby Search
+                "nearbyRestaurant",
+                "walkingDistance",
+                "hotelRestaurant",
+                "aroundMe",
             }
         },
 

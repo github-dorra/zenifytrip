@@ -12,14 +12,14 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://ollama.com")
 
-# Initialisation client Groq
+
+
+# Initialisation client Groq + Ollama
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Initialisation client Ollama
 ollama_client = Client(
     host=OLLAMA_BASE_URL,
-    headers={"Authorization": "Bearer " + os.getenv("OLLAMA_API_KEY")}
-)
+    headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"})
 
 def call_groq_llm(
     prompt: str,

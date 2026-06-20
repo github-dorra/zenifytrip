@@ -1,0 +1,17 @@
+{
+  "city": "Kelibia",
+  "total": 8,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "kelibia_1", "name": "Ruins of Kerkouane", "name_fr": "Ruines de Kerkouane", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Ancient Ruins", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 124, "osm_tags": {}},
+    {"id": "kelibia_2", "name": "Fort de Kelibia", "name_fr": "Fort de Kélibia", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Points of Interest & Landmarks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 122, "osm_tags": {}},
+    {"id": "kelibia_3", "name": "Plage de La Mansourah", "name_fr": "Plage de La Mansourah", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.5, "tripadvisor_reviews": 91, "osm_tags": {}},
+    {"id": "kelibia_4", "name": "Plage de Sidi Mansour", "name_fr": "Plage de Sidi Mansour", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.3, "tripadvisor_reviews": 38, "osm_tags": {}},
+    {"id": "kelibia_5", "name": "Port de Peche de Kelibia", "name_fr": "Port de Pêche de Kélibia", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Piers & Boardwalks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.9, "tripadvisor_reviews": 25, "osm_tags": {}},
+    {"id": "kelibia_6", "name": "El Haouaria Falconry Festival", "name_fr": "Festival de la Fauconnerie d'El Haouaria", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Cultural Events", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 15, "osm_tags": {}},
+    {"id": "kelibia_7", "name": "Cap Bon Viewpoint", "name_fr": "Panorama du Cap Bon", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 18, "osm_tags": {}},
+    {"id": "kelibia_8", "name": "Korbous Thermal Springs", "name_fr": "Sources Thermales de Korbous", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Spas & Wellness", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 22, "osm_tags": {}}
+  ]
+}

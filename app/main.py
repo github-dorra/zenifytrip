@@ -1,4 +1,5 @@
 from app.graph.builder import build_graph
+from app.graph.state import build_initial_state
 import json 
 import time
 import uuid
@@ -6,31 +7,32 @@ import uuid
 def main():
     graph = build_graph()
 
-    state = {
-        "user_id": "2720b441-6e48-464f-880b-71dd2d4cdca5",
-        "session_id": str(uuid.uuid4()),
-        "travellerId":"",
-        "locale": "fr",
-        "user_message": "",
-        "conversation_history": [],
-        "errors": [],
-        "final_answer": "",
-    }
+    state = build_initial_state(
+        user_message   = "",
+        user_id= "2720b441-6e48-464f-880b-71dd2d4cdca5",
+        session_id= str(uuid.uuid4()),
+        conversation_id= str(uuid.uuid4()),
+        travellerId="",
+    )
 
     print("Assistant: Bonjour ! Où souhaitez-vous partir ?")
 
     try:
         while True:
-            user_message = input("\nUser: ")
+            user_message = input("\nUser: ").strip()
+            if not user_message:
+                print("Assistant: Please enter a message.")
+                continue
 
             state["user_message"] = user_message
 
+            # ── Invocation du graphe ──────────────────────────────────────
             start = time.time()
             result = graph.invoke(state)
-            print("\nTraveller ID:", result.get("travellerId"))
             duration = time.time() - start
+            print("\nTraveller ID:", result.get("travellerId"))
     
-
+            # ── Affichage résultats ───────────────────────────────────────
             print("\n──────── RESULT ────────")
             intent_result = result.get("intent_result", {})
             print("Primary Intent :", intent_result.get("primary_intent"))
@@ -43,26 +45,32 @@ def main():
             constraints = result.get("intent_result", {}).get("constraints", {})
             print("\nConstraints:")
             print(json.dumps(constraints, indent=2, ensure_ascii=False))
+
+
+            final_answer = result.get("final_answer") or ""
+            if final_answer:
+                print("\nAssistant:", final_answer)
+            
+            # update state sans écraser
+            for key, value in result.items():
+                if key in ("errors", "node_metrics", "conversation_history"):
+                    continue
+                state[key] = value
+                
             
             # save de history conversation 
             state.setdefault("conversation_history", [])
-
+            
             state["conversation_history"].append({
-                "role": "user",
-                "content": user_message
+                "role":    "user",
+                "content": user_message,
             })
-
-            state["conversation_history"].append({
-                "role": "assistant",
-                "content": result.get("final_answer", "")
-            })
-
-            # Réponse finale
-            if result.get("final_answer"):
-                print("\nAssistant:", result["final_answer"])
-
-            # update state proprement
-            state.update(result)
+            
+            if final_answer:
+                state["conversation_history"].append({
+                    "role": "assistant",
+                    "content": final_answer,
+                })
 
     except KeyboardInterrupt:
         print("\nAssistant: À bientôt !")

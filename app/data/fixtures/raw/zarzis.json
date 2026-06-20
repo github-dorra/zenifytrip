@@ -1,0 +1,18 @@
+{
+  "city": "Zarzis",
+  "total": 9,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "zarzis_1", "name": "Plage Omarit", "name_fr": "Plage Omarit", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 32, "osm_tags": {}},
+    {"id": "zarzis_2", "name": "Sangho Beach", "name_fr": "Plage Sangho", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 81, "osm_tags": {}},
+    {"id": "zarzis_3", "name": "Huilerie Miladi", "name_fr": "Huilerie Miladi - Tourisme Olive", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Farms", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.9, "tripadvisor_reviews": 9, "osm_tags": {}},
+    {"id": "zarzis_4", "name": "Salt Lake of Zarzis", "name_fr": "Lac de Sel de Zarzis", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Scenic Walking Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 2, "osm_tags": {}},
+    {"id": "zarzis_5", "name": "Sebkhet el Melah", "name_fr": "Sebkhet el Melah", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Bodies of Water", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 1, "osm_tags": {}},
+    {"id": "zarzis_6", "name": "Mosquee Sidi Kbir", "name_fr": "Mosquée Sidi Kbir", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 4, "osm_tags": {}},
+    {"id": "zarzis_7", "name": "Zarziskite Kite School", "name_fr": "Zarziskite - École de Kitesurf", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Surfing & Windsurfing", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 5.0, "tripadvisor_reviews": 10, "osm_tags": {}},
+    {"id": "zarzis_8", "name": "Ranch el Castille Zarzis", "name_fr": "Ranch el Castille", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "Equestrian Trails", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "zarzis_9", "name": "Sahara Desert Tours Zarzis", "name_fr": "Tours Désert du Sahara - Zarzis", "name_ar": null, "lat": null, "lng": null, "activity_type": "adventure", "place_type": "4WD, ATV & Off-Road Tours", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.6, "tripadvisor_reviews": 35, "osm_tags": {}}
+  ]
+}

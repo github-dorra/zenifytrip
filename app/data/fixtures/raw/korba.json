@@ -1,0 +1,16 @@
+{
+  "city": "Korba",
+  "total": 7,
+  "fetched_at": "2026-06-09",
+  "tier": 2,
+  "source": "tripadvisor",
+  "activities": [
+    {"id": "korba_1", "name": "Plage de Korba", "name_fr": "Plage de Korba", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.0, "tripadvisor_reviews": 38, "osm_tags": {}},
+    {"id": "korba_2", "name": "Parc National de Korba", "name_fr": "Zone Humide de Korba (Ramsar)", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "National Parks", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.2, "tripadvisor_reviews": 15, "osm_tags": {}},
+    {"id": "korba_3", "name": "Flamingo Lagoon Korba", "name_fr": "Lagune aux Flamants Roses - Korba", "name_ar": null, "lat": null, "lng": null, "activity_type": "nature", "place_type": "Nature & Wildlife Areas", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.4, "tripadvisor_reviews": 22, "osm_tags": {}},
+    {"id": "korba_4", "name": "Mosquee Principale Korba", "name_fr": "Mosquée Principale de Korba", "name_ar": null, "lat": null, "lng": null, "activity_type": "culture", "place_type": "Religious Sites", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": null, "tripadvisor_reviews": null, "osm_tags": {}},
+    {"id": "korba_5", "name": "Port de Korba", "name_fr": "Port de Korba", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Piers & Boardwalks", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.8, "tripadvisor_reviews": 9, "osm_tags": {}},
+    {"id": "korba_6", "name": "Plage Chatt Meriem Korba", "name_fr": "Plage Chatt Meriem - Korba", "name_ar": null, "lat": null, "lng": null, "activity_type": "relax", "place_type": "Beaches", "is_core_tag": true, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 4.1, "tripadvisor_reviews": 14, "osm_tags": {}},
+    {"id": "korba_7", "name": "Souk de Korba", "name_fr": "Souk de Korba", "name_ar": null, "lat": null, "lng": null, "activity_type": "city_experience", "place_type": "Flea & Street Markets", "is_core_tag": false, "source": "tripadvisor", "business_score": 0.2, "has_geospatial_info": false, "tripadvisor_rating": 3.5, "tripadvisor_reviews": 6, "osm_tags": {}}
+  ]
+}
