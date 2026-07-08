@@ -6,6 +6,8 @@ business_score = 0.2 (enrichissement expérience, pas de commission directe)
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.services.activity_service.scoring import budget_proximity_score
+
 logger = logging.getLogger(__name__)
 
 BUSINESS_SCORE = 0.2
@@ -88,12 +90,15 @@ def _compute_user_score(
     elif rating >= 3.5:
         s += 0.10; criteria.append("rating_ok")
 
-    # Budget vs price_from_eur (0.20)
+    # Budget vs price_from_eur (0.20) — score continu partagé
     price = doc.get("price_from_eur")
     if budget_level and price is not None:
-        lo, hi = BUDGET_TO_PRICE_EUR.get(budget_level, (0, 999))
-        if lo <= float(price) <= hi:
-            s += 0.20; criteria.append("budget_match")
+        b = budget_proximity_score(float(price), budget_level, BUDGET_TO_PRICE_EUR)
+        s += b
+        if b >= 0.15:
+            criteria.append("budget_match")
+        elif b > 0:
+            criteria.append("budget_partial")
     elif price is None:
         # activité gratuite → compatible tous budgets
         s += 0.10; criteria.append("free_activity")
@@ -228,7 +233,7 @@ def get_candidates(
             "max_participants":       0,
             "registered_participants": 0,
             "available_spots":        None,
-            "is_available":           True,
+            "is_available":           None,   # inconnu — MongoDB ne vérifie pas la dispo réelle
             "already_booked":         False,
             "has_geospatial_info":    False,
             "distance_km":            None,

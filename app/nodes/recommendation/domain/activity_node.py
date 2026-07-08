@@ -225,7 +225,9 @@ class ActivityNode(BaseNode):
         merged = self._dedup(source1_result, source2_result)
 
         # ── Tri final par score ────────────────────────────────────────
-        merged.sort(key=lambda x: (int(x.get("is_available", True)), x.get("score", 0)), reverse=True)
+        # True (confirmé) > None (inconnu) > False (indisponible — exclu au ranking)
+        _avail_rank = {True: 2, None: 1, False: 0}
+        merged.sort(key=lambda x: (_avail_rank.get(x.get("is_available"), 1), x.get("score", 0)), reverse=True)
 
         # ── Validation Pydantic ────────────────────────────────────────
         validated = self._validate(merged[:MAX_FINAL])

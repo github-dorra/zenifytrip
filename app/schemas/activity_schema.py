@@ -43,7 +43,7 @@ class ActivityCandidate(BaseModel):
     max_participants:         int           = 0
     registered_participants:  int           = 0
     available_spots:          Optional[int] = None
-    is_available:             bool          = True
+    is_available:             Optional[bool] = None   # True=confirmé | False=indispo | None=inconnu (SOURCE 2)
     already_booked:           bool          = False
 
     # ── Avis (source MongoDB/TripAdvisor) ────────────────────────────

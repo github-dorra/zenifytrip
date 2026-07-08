@@ -12,10 +12,12 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from app.config.definitions import DAY_PLANNER_CONFIG
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.nodes.utility.json_parser import parse_json_safely
 from app.prompts.recommendation.day_planner_prompt import DAY_PLANNER_PROMPT
 from app.schemas.day_planner_schema import DayPlannerOutput
+from app.utils.session_memory import extract_session_signals
 
 logger = logging.getLogger(__name__)
 
@@ -43,18 +45,8 @@ class DayPlannerNode(BaseNode):
         itinerary : dict | None          — DayPlannerOutput.model_dump() ou None si bypass
     """
 
-    def __init__(self) -> None:
-        super().__init__(NodeConfig(
-            name="day_planner",
-            node_type="llm_agent",
-            provider="groq",
-            model="llama-3.3-70b-versatile",
-            temperature=0.3,        # légère créativité pour varier les journées
-            max_tokens=2000,        # itinéraire complet peut être long
-            response_format="json",
-            cache_enabled=True,
-            cache_ttl_seconds=1800, # 30 min (météo + disponibilités peuvent changer)
-        ))
+    def __init__(self):
+        super().__init__(DAY_PLANNER_CONFIG)
 
     # ------------------------------------------------------------------
     # Méthode principale
@@ -78,26 +70,40 @@ class DayPlannerNode(BaseNode):
         merged_context     = state.get("merged_context") or {}
         weather_context    = state.get("weather_context") or {}
         availability_result= state.get("availability_result") or {}
+        trip_position      = state.get("trip_position")   or {}
+        booking_anchors    = state.get("booking_anchors") or {}
+        day_skeleton       = state.get("day_skeleton")
+        session_signals    = extract_session_signals(state.get("conversation_history") or [])
         language           = intent_result.get("language", "fr")
 
         # --- 3. Extraire les champs métier du contexte fusionné ---
-        constraints  = merged_context.get("constraints") or {}
-        profile_data = merged_context.get("profile_data") or {}
-        
-        if not constraints:
-            constraints = intent_result.get("constraints") or {}
+        profile_data = state.get("profile_data") or {}
+        constraints  = intent_result.get("constraints") or {}
 
-
-        destination   = self._resolve_destination(constraints, profile_data, availability_result)
+        destination   = self._resolve_destination(merged_context, constraints, profile_data, availability_result)
         duration_days = self._resolve_duration(constraints, availability_result)
         start_date    = constraints.get("start_date")
 
-        traveler_profile = self._build_traveler_profile(profile_data, constraints)
+        traveler_profile = self._build_traveler_profile(
+            profile_data, merged_context, constraints, state.get("user_type") or "native"
+        )
+
+        self.logger.info(
+            f"[DayPlanner] day={trip_position.get('day_index')}/{trip_position.get('total_days')} "
+            f"(first={trip_position.get('is_first_day')}, last={trip_position.get('is_last_day')}) | "
+            f"meal_plan={booking_anchors.get('meal_plan')!r} | "
+            f"traveler_type={traveler_profile.get('traveler_type')}"
+        )
 
         # --- 4. Préparer les candidats (filtre + limite tokens) ---
         candidates_for_llm = self._prepare_candidates(ranked_results, availability_result)
 
         # --- 5. Construire le prompt ---
+        # availability_result contient trip_position/booking_anchors imbriqués (service) —
+        # on les retire de la copie envoyée au LLM pour ne pas dupliquer les tokens
+        availability_slim = {k: v for k, v in availability_result.items()
+                             if k not in ("trip_position", "booking_anchors")}
+
         prompt = DAY_PLANNER_PROMPT.format(
             ranked_candidates  = json.dumps(candidates_for_llm,  ensure_ascii=False),
             destination        = destination,
@@ -105,7 +111,11 @@ class DayPlannerNode(BaseNode):
             start_date         = start_date or "null",
             traveler_profile   = json.dumps(traveler_profile,    ensure_ascii=False),
             weather_context    = json.dumps(weather_context,     ensure_ascii=False),
-            availability_result= json.dumps(availability_result, ensure_ascii=False),
+            availability_result= json.dumps(availability_slim,   ensure_ascii=False),
+            trip_position      = json.dumps(trip_position,       ensure_ascii=False),
+            booking_anchors    = json.dumps(booking_anchors,     ensure_ascii=False),
+            day_skeleton       = json.dumps(day_skeleton, ensure_ascii=False, default=str) if day_skeleton else "null",
+            session_signals    = json.dumps(session_signals, ensure_ascii=False),
             language           = language,
         )
 
@@ -129,16 +139,23 @@ class DayPlannerNode(BaseNode):
 
     def _resolve_destination(
         self,
+        merged_context: Dict[str, Any],
         constraints: Dict[str, Any],
         profile_data: Dict[str, Any],
         availability: Dict[str, Any],
     ) -> str:
         """
-        Résolution de la destination selon 3 niveaux de priorité :
-        1. Contraintes utilisateur (ce qu'il a demandé explicitement)
-        2. Destination issue de l'availability_checker (hôtel en cours)
-        3. Fallback "Tunisie"
+        Résolution de la destination selon 4 niveaux de priorité :
+        1. merged_context (destination normalisée par context_merger —
+           inclut déjà contraintes user + fallback hôtel profil)
+        2. Contraintes brutes (filet de sécurité)
+        3. Destination issue de l'availability_checker (hôtel en cours)
+        4. Fallback "Tunisie"
         """
+        dest = merged_context.get("destination")
+        if dest:
+            return str(dest)
+
         dest = constraints.get("destination")
         if dest:
             return str(dest)
@@ -148,12 +165,11 @@ class DayPlannerNode(BaseNode):
             return str(dest)
 
         # Tentative depuis le profil (hébergement actif)
-        accommodations = profile_data.get("accommodations") or []
-        if accommodations:
-            hotel = accommodations[0].get("hotel") or {}
-            hotel_name = hotel.get("name", "")
-            if hotel_name:
-                return hotel_name
+        travel_prefs  = profile_data.get("travel_preferences") or {}
+        accommodation = travel_prefs.get("accommodation") or {}
+        hotel_name    = accommodation.get("hotel_name", "")
+        if hotel_name:
+            return hotel_name
 
         return "Tunisie"
 
@@ -187,15 +203,26 @@ class DayPlannerNode(BaseNode):
     def _build_traveler_profile(
         self,
         profile_data: Dict[str, Any],
+        merged_context: Dict[str, Any],
         constraints: Dict[str, Any],
+        user_type: str = "native",
     ) -> Dict[str, Any]:
-        """Construit un profil voyageur synthétique pour le prompt."""
+        """
+        Profil voyageur pour le prompt — lit les valeurs DÉJÀ calculées
+        (traveler_type vient du voucher via profile_builder, jamais recalculé ici).
+        merged_context prime : interests accumulés multi-tour, budget fusionné.
+        """
+        traveller_profile = profile_data.get("traveller_profile") or {}
+        tags_data         = profile_data.get("tags") or {}
+        tags              = tags_data.get("tags") or []
         return {
-            "user_type"   : profile_data.get("user_type") or "native",
-            "has_partner" : bool(profile_data.get("hasPartner") or False),
-            "child_count" : int(profile_data.get("childCount") or 0),
-            "budget_level": constraints.get("budget_level") or "medium",
-            "interests"   : constraints.get("interests") or profile_data.get("tags") or [],
+            "user_type"    : user_type,
+            "traveler_type": traveller_profile.get("traveler_type") or "solo",  # family|couple|solo — calculé depuis le voucher
+            "has_partner"  : bool(traveller_profile.get("has_partner") or False),
+            "child_count"  : int(traveller_profile.get("child_count") or 0),
+            "baby_count"   : int(traveller_profile.get("baby_count")  or 0),
+            "budget_level" : merged_context.get("budget_level") or constraints.get("budget_level") or "medium",
+            "interests"    : merged_context.get("interests") or constraints.get("interests") or tags or [],
         }
 
     def _prepare_candidates(

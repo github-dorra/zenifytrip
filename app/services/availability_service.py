@@ -2,35 +2,25 @@
 AvailabilityService — Vérification disponibilité voyageur
 ==========================================================
 Détermine la destination réelle via 3 niveaux de fallback :
-  Niveau 1 — hotel.address (dict structuré, plusieurs clés possibles)
-  Niveau 2 — hotel.address (string) ou hotel.name (scan ville connue)
   Niveau 3 — géolocalisation GPS → ville tunisienne la plus proche
 
 Source : GET /api/bookings?travellerId={id}
 """
 import logging
 import math
-import unicodedata
 import requests
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.config.settings import BOOKINGS_API_URL, API_KEY
 from app.services.cache_service import SimpleTTLCache, cache
+from app.utils.text_utils import normalize_text as _normalize
 
 logger = logging.getLogger(__name__)
 
 HEADERS  = {"Authorization": f"Bearer {API_KEY}"}
 TIMEOUT  = 15
 MAX_GEOLOC_RADIUS_KM = 200   # au-delà → pas de correspondance
-
-
-# ─── Utilitaires texte ────────────────────────────────────────────────────────
-
-def _normalize(text: str) -> str:
-    """Lowercase + supprime les accents (unicode NFKD)."""
-    nfkd = unicodedata.normalize("NFKD", str(text).lower())
-    return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
 def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -105,78 +95,126 @@ def _nearest_city_from_coords(lat: float, lng: float) -> Optional[str]:
     return None
 
 
-# ─── Extraction destination hôtel (3 niveaux) ────────────────────────────────
-
-def _extract_destination_from_hotel(
-    hotel_info: Dict[str, Any],
-    geolocation: Optional[Dict[str, Any]] = None,
-) -> Optional[str]:
-    """
-    Niveau 1 : hotel.address dict — plusieurs noms de clés possibles.
-    Niveau 2 : hotel.address string OU hotel.name → scan CITY_TO_IATA.
-    Niveau 3 : geolocation (lat/lng) → ville la plus proche.
-    """
-    address = hotel_info.get("address")
-
-    # ── Niveau 1 : address dict structuré ────────────────────────────
-    if isinstance(address, dict):
-        raw_city = (
-            address.get("city")
-            or address.get("ville")
-            or address.get("locality")
-            or address.get("municipality")
-            or address.get("town")
-            or address.get("region")
-            or address.get("gouvernorat")
-            or address.get("state")
-        )
-        if raw_city:
-            matched = _match_city_in_text(str(raw_city))
-            if matched:
-                logger.debug(f"[AvailabilityService] destination (L1-dict): {matched}")
-                return matched
-
-    # ── Niveau 2a : address string libre ─────────────────────────────
-    if isinstance(address, str) and address.strip():
-        matched = _match_city_in_text(address)
-        if matched:
-            logger.debug(f"[AvailabilityService] destination (L2-address): {matched}")
-            return matched
-
-    # ── Niveau 2b : hotel name ────────────────────────────────────────
-    hotel_name = hotel_info.get("name") or hotel_info.get("shortDescription") or ""
-    if hotel_name:
-        matched = _match_city_in_text(hotel_name)
-        if matched:
-            logger.debug(f"[AvailabilityService] destination (L2-name '{hotel_name}'): {matched}")
-            return matched
-
-    # ── Niveau 3 : géolocalisation ────────────────────────────────────
-    if geolocation:
-        lat = geolocation.get("lat") or geolocation.get("latitude")
-        lng = geolocation.get("lng") or geolocation.get("longitude") or geolocation.get("lon")
-        if lat is not None and lng is not None:
-            city = _nearest_city_from_coords(float(lat), float(lng))
-            if city:
-                logger.debug(f"[AvailabilityService] destination (L3-geoloc): {city}")
-                return city
-
-    logger.warning(
-        f"[AvailabilityService] destination introuvable — "
-        f"hotel='{hotel_info.get('name')}' | address={address!r}"
-    )
-    return None
-
 
 # ─── Fetch réservations voyageur ──────────────────────────────────────────────
 
 def _parse_date(date_str: Optional[str]) -> Optional[date]:
+    """
+    Convertit une string ISO (API / profile / intent)
+    en objet date robuste.
+    """
+
     if not date_str:
         return None
+
     try:
-        return datetime.fromisoformat(str(date_str)[:10]).date()
-    except (ValueError, TypeError):
-        return None
+        s = str(date_str).strip()
+
+        # ── Cas ISO Z (UTC) ─────────────────────────
+        # 2026-06-24T10:30:00Z
+        if s.endswith("Z"):
+            s = s.replace("Z", "+00:00")
+
+        # ── datetime ISO standard ───────────────────
+        dt = datetime.fromisoformat(s)
+
+        return dt.date()
+
+    except Exception:
+        try:
+            # fallback ultra simple (YYYY-MM-DD)
+            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+
+# ─── Ancres booking (ce que le voyageur a déjà payé) ─────────────────────────
+
+def _normalize_meal_plan(meal_plan: Optional[str]) -> Dict[str, Any]:
+    """
+    Dérive les repas inclus depuis le libellé du contrat.
+    Conventions : RO=logement seul | BB=petit-déj | HB=petit-déj+dîner
+                  FB=pension complète | AI=all inclusive
+    Libellé inconnu → tout None (on ne devine jamais).
+    """
+    flags = {"breakfast_included": None, "lunch_included": None, "dinner_included": None}
+    if not meal_plan:
+        return flags
+
+    mp = _normalize(meal_plan)
+    if "all" in mp or mp in ("ai", "ultra"):
+        return {"breakfast_included": True, "lunch_included": True, "dinner_included": True}
+    if "full" in mp or "complete" in mp or mp == "fb":
+        return {"breakfast_included": True, "lunch_included": True, "dinner_included": True}
+    if "half" in mp or "demi" in mp or mp == "hb":
+        return {"breakfast_included": True, "lunch_included": False, "dinner_included": True}
+    if "breakfast" in mp or "petit" in mp or mp == "bb":
+        return {"breakfast_included": True, "lunch_included": False, "dinner_included": False}
+    if "room" in mp or "logement" in mp or mp == "ro":
+        return {"breakfast_included": False, "lunch_included": False, "dinner_included": False}
+    return flags
+
+
+def _build_booking_anchors(profile: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Consolide ce que le voyageur a DÉJÀ payé — les ancres immuables
+    autour desquelles toute journée doit être planifiée.
+    Lecture pure de profile_data (chargé depuis Redis) — aucun appel API.
+    """
+    prefs         = profile.get("travel_preferences") or {}
+    accommodation = prefs.get("accommodation") or {}
+    transfer      = prefs.get("transfer") or {}
+
+    meal_plan = accommodation.get("meal_plan")
+    anchors = {
+        "meal_plan":       meal_plan,
+        **_normalize_meal_plan(meal_plan),
+        "hotel_name":      accommodation.get("hotel_name"),
+        "hotel_zone":      accommodation.get("hotel_zone"),
+        "booked_services": accommodation.get("booked_services") or [],
+        "transfer":        transfer or None,
+    }
+    return anchors
+
+
+# ─── Position dans le séjour ──────────────────────────────────────────────────
+
+def _build_trip_position(
+    outbound_dt: Optional[date],
+    return_dt: Optional[date],
+    today: date,
+    profile: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Position temporelle du voyageur dans son séjour.
+    day_index=1 = jour d'arrivée. Tout est None/False si pas de voyage en cours.
+    arrival_time / departure_time proviennent des vols du travel plan —
+    ils définissent la fenêtre horaire utile du premier et du dernier jour.
+    """
+    position = {
+        "day_index":      None,
+        "total_days":     None,
+        "is_first_day":   False,
+        "is_last_day":    False,
+        "arrival_time":   None,
+        "departure_time": None,
+    }
+
+    if not (outbound_dt and return_dt and outbound_dt <= today <= return_dt):
+        return position
+
+    position["day_index"]    = (today - outbound_dt).days + 1
+    position["total_days"]   = (return_dt - outbound_dt).days + 1
+    position["is_first_day"] = today == outbound_dt
+    position["is_last_day"]  = today == return_dt
+
+    flights  = (profile.get("travel_preferences") or {}).get("flights") or {}
+    outbound = flights.get("outbound") or {}
+    ret      = flights.get("return")   or {}
+    position["arrival_time"]   = outbound.get("landing_time")
+    position["departure_time"] = ret.get("takeoff_time")
+
+    return position
 
 
 def get_traveller_bookings(traveller_id: str) -> List[Dict[str, Any]]:
@@ -243,6 +281,7 @@ def get_traveller_bookings(traveller_id: str) -> List[Dict[str, Any]]:
 def check_availability(
     traveller_id: Optional[str],
     profile_data: Optional[Dict[str, Any]],
+    context_merge: Optional[Dict[str, Any]] = None,
     request_date: Optional[str] = None,
     geolocation: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -268,6 +307,8 @@ def check_availability(
         "outbound_date":       None,
         "return_date":         None,
         "days_remaining":      None,
+        "trip_position":       None,
+        "booking_anchors":     None,
         "hotel_name":          None,
         "destination":         None,
         "destination_source":  None,
@@ -276,10 +317,11 @@ def check_availability(
     }
 
     profile = profile_data or {}
+    availability = profile.get("availability") or {}
 
     # ── Dates de voyage ───────────────────────────────────────────────
-    outbound_dt = _parse_date(profile.get("outboundDate") or profile.get("outbound_date"))
-    return_dt   = _parse_date(profile.get("returnDate")   or profile.get("return_date"))
+    outbound_dt = _parse_date(availability.get("outbound_date"))
+    return_dt   = _parse_date(availability.get("return_date"))
 
     result["outbound_date"] = str(outbound_dt) if outbound_dt else None
     result["return_date"]   = str(return_dt)   if return_dt   else None
@@ -290,42 +332,26 @@ def check_availability(
         if result["trip_is_ongoing"]:
             result["days_remaining"] = (return_dt - today).days
 
-    # ── Destination depuis hôtel (3 niveaux) ─────────────────────────
-    accommodations = profile.get("accommodations") or []
-    if accommodations:
-        active = next(
-            (a for a in accommodations if a.get("status") not in ("Cancelled",)),
-            accommodations[0],
-        )
-        hotel_info = active.get("hotel") or {}
-        result["hotel_name"] = hotel_info.get("name")
+    result["trip_position"]   = _build_trip_position(outbound_dt, return_dt, today, profile)
+    result["booking_anchors"] = _build_booking_anchors(profile)
 
-        # Détermination de la source pour traçabilité
-        address = hotel_info.get("address")
-        if isinstance(address, dict) and any(
-            address.get(k) for k in ("city", "ville", "locality", "municipality", "town", "region", "gouvernorat", "state")
-        ):
-            source = "address_dict"
-        elif isinstance(address, str) and address.strip():
-            source = "address_str"
-        elif hotel_info.get("name"):
-            source = "hotel_name"
-        elif geolocation:
-            source = "geolocation"
-        else:
-            source = None
 
-        destination = _extract_destination_from_hotel(hotel_info, geolocation)
-        result["destination"]        = destination
-        result["destination_source"] = source if destination else None
+    destination = (context_merge or {}).get("destination")
 
+    if destination:
+        result["destination"] = destination
+        result["destination_source"] = (context_merge or {}).get("destination_source", "context_merge")
+
+    # ── 3. FALLBACK ULTRA BAS NIVEAU (UNIQUEMENT SI BUG) ─────
     elif geolocation:
-        # Pas d'hôtel dans le profil → géoloc directe
         lat = geolocation.get("lat") or geolocation.get("latitude")
         lng = geolocation.get("lng") or geolocation.get("longitude") or geolocation.get("lon")
+
         if lat is not None and lng is not None:
-            result["destination"]        = _nearest_city_from_coords(float(lat), float(lng))
-            result["destination_source"] = "geolocation"
+            result["destination"] = _nearest_city_from_coords(float(lat), float(lng))
+            result["destination_source"] = "geolocation_fallback"
+            
+            
 
     # ── Réservations d'activités existantes ──────────────────────────
     if traveller_id:

@@ -49,6 +49,24 @@ class DaySlotItem(BaseModel):
     candidate_id:  Optional[str]   = Field(None, description="ID du candidat ranked_results d'origine")
     ranked_score:  Optional[float] = Field(None, description="Score issu du ranking_node")
 
+    @field_validator("time_slot", mode="before")
+    @classmethod
+    def normalize_time_slot(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_clean = v.lower().strip()
+            if v_clean in {"morning", "afternoon", "evening"}:
+                return v_clean
+        return "evening"   # LLM parfois met "free" ici par confusion avec item_type
+
+    @field_validator("item_type", mode="before")
+    @classmethod
+    def normalize_item_type(cls, v: Any) -> str:
+        if isinstance(v, str):
+            v_clean = v.lower().strip()
+            if v_clean in {"hotel", "restaurant", "activity", "flight", "free"}:
+                return v_clean
+        return "free"
+
     @field_validator("duration_minutes", mode="before")
     @classmethod
     def clamp_duration(cls, v: Any) -> Optional[int]:

@@ -34,7 +34,7 @@ class FinalResponseNode(BaseNode):
         )
 
         constraints = (
-            merged_context.get("constraints")
+            state.get("intent_result", {}).get("constraints")
             or {}
         )
 

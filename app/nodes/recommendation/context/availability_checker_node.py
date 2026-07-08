@@ -47,6 +47,8 @@ class AvailabilityCheckerNode(BaseNode):
                 "outbound_date":       None,
                 "return_date":         None,
                 "days_remaining":      None,
+                "trip_position":       None,
+                "booking_anchors":     None,
                 "hotel_name":          None,
                 "destination":         None,
                 "destination_source":  None,
@@ -54,9 +56,15 @@ class AvailabilityCheckerNode(BaseNode):
                 "booked_time_slots":   [],
             }
 
+        trip_position   = result.get("trip_position")   or {}
+        booking_anchors = result.get("booking_anchors") or {}
         self.logger.info(
             f"[AvailabilityCheckerNode] "
             f"trip_is_ongoing={result.get('trip_is_ongoing')} | "
+            f"day={trip_position.get('day_index')}/{trip_position.get('total_days')} "
+            f"(first={trip_position.get('is_first_day')}, last={trip_position.get('is_last_day')}) | "
+            f"meal_plan={booking_anchors.get('meal_plan')!r} | "
+            f"booked_services={len(booking_anchors.get('booked_services') or [])} | "
             f"destination={result.get('destination')!r} "
             f"(source={result.get('destination_source')}) | "
             f"geoloc={'oui' if geolocation else 'non'}"
@@ -65,4 +73,6 @@ class AvailabilityCheckerNode(BaseNode):
         return {
             "traveller_available": result.get("trip_is_ongoing", False),
             "availability_result": result,
+            "trip_position":       result.get("trip_position"),
+            "booking_anchors":     result.get("booking_anchors"),
         }

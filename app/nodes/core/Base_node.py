@@ -57,7 +57,7 @@ class NodeConfig:
     provider: str = "groq"  # groq | ollama
     model: Optional[str] = None
     temperature: float = 0.0
-    max_tokens: int = 2048
+    max_tokens: int = 3000
     response_format: Optional[Any] = None  #model ollmama avec output json 
     cache_enabled: bool = False
     cache_ttl_seconds: int = 3000

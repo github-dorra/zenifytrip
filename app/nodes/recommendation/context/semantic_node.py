@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional
 from app.nodes.core.Base_node import BaseNode
 from app.config.definitions import SEMANTIC_CONFIG
 from app.prompts.recommendation.semantic_prompt import (
-    SEMANTIC_SYSTEM_PROMPT
+    SEMANTIC_SYSTEM_PROMPT_V2 as SEMANTIC_SYSTEM_PROMPT
 )
 from app.nodes.utility.json_parser import parse_json_safely
 
@@ -206,6 +206,7 @@ class SemanticAgentNode(BaseNode):
         "season",
         "pace",
 
+        # Destinations Tunisie — villes touristiques principales
         "tunis",
         "mahdia",
         "elJam",
@@ -213,13 +214,16 @@ class SemanticAgentNode(BaseNode):
         "djerba",
         "beja",
         "sousse",
-
-        "1day",
-        "2days",
-        "3days",
-        "5days",
-        "7days",
-        "14days",
+        "hammamet",
+        "nabeul",
+        "kairouan",
+        "sfax",
+        "tabarka",
+        "bizerte",
+        "tozeur",
+        "zarzis",
+        "gabes",
+        "yasmineDjerba",
 
         "budgetFriendly",
         "mediumBudget",
@@ -238,7 +242,9 @@ class SemanticAgentNode(BaseNode):
 
         "quickGetaway",
         "weeklyTrip",
-        "deepExploration"
+        "deepExploration",
+        "couple",
+        "romantic",
     }
 
     # =========================================================
@@ -358,10 +364,7 @@ class SemanticAgentNode(BaseNode):
             "secondary_intents": secondary_intents,
         }
 
-        weather_insights = weather_context.get(
-            "insights",
-            {}
-        )
+        weather_insights = weather_context.get("insights") or {}
 
         weather_data = {
             "avg_temperature":

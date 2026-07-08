@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.config.settings import ACTIVITIES_API_URL, BOOKINGS_API_URL, API_KEY
+from app.services.activity_service.scoring import budget_proximity_score
 from app.services.cache_service import SimpleTTLCache, cache
 
 logger = logging.getLogger(__name__)
@@ -182,10 +183,12 @@ class InternalActivityService:
 
         adult_price = float(activity.get("adultPrice") or 0)
         if budget_level and adult_price > 0:
-            lo, hi = InternalActivityService.BUDGET_TO_PRICE.get(budget_level, (0, 9999))
-            if lo <= adult_price <= hi:
-                s += 0.20
+            b = budget_proximity_score(adult_price, budget_level, InternalActivityService.BUDGET_TO_PRICE)
+            s += b
+            if b >= 0.15:
                 criteria.append("budget_match")
+            elif b > 0:
+                criteria.append("budget_partial")
 
         if traveler_type:
             type_kws = InternalActivityService.TRAVELER_TYPE_KEYWORDS.get(traveler_type, [])

@@ -1,25 +1,25 @@
 import os
-import requests
 from typing import Any, Optional
 
 from ollama import Client
 from groq import Groq
 from dotenv import load_dotenv
-
+from google import genai
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://ollama.com")
-
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 # Initialisation client Groq + Ollama
 groq_client = Groq(api_key=GROQ_API_KEY)
-
 ollama_client = Client(
     host=OLLAMA_BASE_URL,
     headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"})
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+
 
 def call_groq_llm(
     prompt: str,
@@ -82,7 +82,40 @@ def call_ollama_llm(
         
     }
 
+def call_gemini_llm(
+    prompt: str,
+    model: str,
+    temperature: float = 0.2,
+    max_tokens: int = 1024
+):
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY manquante dans le fichier .env")
 
+    response = gemini_client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config={
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+        },
+    )
+
+    usage = {}
+    um = getattr(response, "usage_metadata", None)
+    if um:
+        usage = {
+            "prompt_tokens":     getattr(um, "prompt_token_count",     0) or 0,
+            "completion_tokens": getattr(um, "candidates_token_count", 0) or 0,
+            "total_tokens":      getattr(um, "total_token_count",      0) or 0,
+        }
+
+    return {
+        "provider": "gemini",
+        "model": model,
+        "content": response.text,
+        "usage": usage,
+    }
+    
 def call_llm(
     prompt: str,
     model: str,
@@ -109,5 +142,14 @@ def call_llm(
             max_tokens=max_tokens,
             response_format=response_format
         )
+        
+    if provider == "gemini":
+        return call_gemini_llm(
+            prompt=prompt,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
 
-    raise ValueError("Provider invalide. Utilise 'groq' ou 'ollama'.")
+
+    raise ValueError("Provider invalide. Utilise 'groq' ou 'ollama' ou 'gemini'.")

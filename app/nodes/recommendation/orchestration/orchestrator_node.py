@@ -75,11 +75,7 @@ class OrchestratorNode(BaseNode):
             or []
         )
 
-        constraints = merged_context.get("constraints") or {}
-        destination = (
-            constraints.get("destination")
-            or merged_context.get("destination")
-        )
+        destination = merged_context.get("destination")
 
         # ── 2. SERVICES DE BASE (intent primaire) ────────────────────────────
         services: set = set(INTENT_TO_SERVICES.get(primary_intent, []))

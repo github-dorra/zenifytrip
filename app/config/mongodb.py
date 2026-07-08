@@ -54,12 +54,28 @@ def ensure_indexes():
         IndexModel([("price_from_eur", ASCENDING)]),
     ])
 
-    # restaurants : unicité (name, destination_id) + recherche par prix/rating
+    # restaurants (RestaurantGuru) : unicité (name, city) + recherche par city/zone/rating
     rest = restaurant_collection()
+
+    # Supprimer l'ancien index (name, destination_id) si présent — conflictuel avec
+    # les docs RestaurantGuru qui n'ont pas de destination_id (tous null → doublon)
+    try:
+        existing = rest.index_information()
+        if "name_1_destination_id_1" in existing:
+            rest.drop_index("name_1_destination_id_1")
+            logger.info("restaurant_collection: ancien index name_1_destination_id_1 supprimé")
+    except Exception as e:
+        logger.warning(f"restaurant_collection: impossible de supprimer l'ancien index: {e}")
+
     rest.create_indexes([
-        IndexModel([("name", ASCENDING), ("destination_id", ASCENDING)], unique=True),
-        IndexModel([("destination_id", ASCENDING)]),
-        IndexModel([("rating", ASCENDING)]),
+        # Unicité sur (name, city) — adapté aux données RestaurantGuru
+        IndexModel([("name", ASCENDING), ("city", ASCENDING)], unique=True),
+        # Recherche par ville et gouvernorat — utilisés par MongoRestaurantService
+        IndexModel([("city",   ASCENDING)]),
+        IndexModel([("zone",   ASCENDING)]),
+        # Tri et filtrage
+        IndexModel([("rating",      ASCENDING)]),
         IndexModel([("price_level", ASCENDING)]),
+        IndexModel([("source",      ASCENDING)]),
     ])
     logger.info("Index MongoDB créés / vérifiés")

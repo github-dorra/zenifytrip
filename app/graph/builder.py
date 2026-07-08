@@ -6,7 +6,7 @@ from app.graph.state import GraphState
 from app.nodes.conversation.greeting_node import GreetingNode
 from app.nodes.comprehension.intent_classifier_node import IntentClassifierNode
 from app.nodes.comprehension.clarification_checker_node import ClarificationCheckerNode
-from app.nodes.user_profile.profile_loader_node import ProfileLoaderNode
+from app.nodes.user_profile.load_profile_node import ProfileLoaderNode
 from app.nodes.merge.context_merger_node import ContextMergerNode
 from app.nodes.conversation.final_response_node import FinalResponseNode
 from app.nodes.core.session_bootstrap import bootstrap_session
@@ -23,7 +23,7 @@ from app.nodes.recommendation.postprocessing.constraint_validator_node import Co
 from app.nodes.recommendation.postprocessing.ranking_node import RankingNode
 from app.nodes.recommendation.postprocessing.recommendation_response_node import RecommendationResponseNode
 from app.nodes.recommendation.postprocessing.day_planner_node import DayPlannerNode
-from asyncio import graph
+from app.nodes.recommendation.postprocessing.day_skeleton_node import DaySkeletonNode
 
 
 
@@ -101,6 +101,7 @@ def build_graph():
     graph.add_node("constraint_validator", ConstraintValidatorNode())
     graph.add_node("ranking_node",         RankingNode())
     graph.add_node("day_planner", DayPlannerNode())
+    graph.add_node("day_skeleton", DaySkeletonNode())
 
     # ── RÉPONSE — 2 agents distincts ──────────────────────────────────────────
     # Agent 1 : clarification / conversations sans candidats (chemin ask_clarification)
@@ -133,10 +134,11 @@ def build_graph():
         "clarification_checker",
         route_after_clarification_checker,
         {
-            "weather_node":   "weather_node",
+            "weather_node":   "day_skeleton",   # squelette immédiat (<10ms), puis pipeline
             "final_response": "final_response",
         },
     )
+    graph.add_edge("day_skeleton", "weather_node")
 
     # ── EDGES PHASE 2 ────────────────────────────────────────────────────────
     graph.add_edge("weather_node",  "semantic_node")

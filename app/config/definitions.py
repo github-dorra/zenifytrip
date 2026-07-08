@@ -22,9 +22,9 @@ SEMANTIC_CONFIG = NodeConfig(
     name="semantic_agent",
     node_type="comprehension",
     provider="groq",
-    model="llama-3.3-70b-versatile",
-    temperature=0.4,
-    max_tokens=2000,
+    model="meta-llama/llama-4-scout-17b-16e-instruct",  # 30K TPM, MoE 17B — prompt 300 lignes trop complexe pour 8B
+    temperature=0.0,   # JSON déterministe — pas de créativité nécessaire
+    max_tokens=800,
     response_format="json",
     cache_enabled=True,
     cache_ttl_seconds=3600,
@@ -34,9 +34,9 @@ RANKING_CONFIG = NodeConfig(
     name="ranking",
     node_type="llm_agent",
     provider="groq",
-    model="llama-3.3-70b-versatile",
+    model="llama-3.1-8b-instant",   # ranking = Python pur, config de secours uniquement
     temperature=0.2,
-    max_tokens=2000,
+    max_tokens=800,
     response_format="json",
     cache_enabled=False,
 )
@@ -45,7 +45,7 @@ DAY_PLANNER_CONFIG = NodeConfig(
     name="day_planner",
     node_type="llm_agent",
     provider="groq",
-    model="qwen/qwen3-32b",
+    model="meta-llama/llama-4-scout-17b-16e-instruct",  # 30K TPM, MoE 17B — gère les prompts >6K tokens
     temperature=0.3,
     max_tokens=3000,
     response_format="json",
@@ -60,9 +60,9 @@ RESPONSE_CONFIG = NodeConfig(
     name="response",
     node_type="llm_agent",
     provider="groq",
-    model="llama-3.3-70b-versatile",
+    model="llama-3.3-70b-versatile",  # qualité française optimale — prouvé sur intent_classifier
     temperature=0.4,
-    max_tokens=1500,
+    max_tokens=2500,
     response_format="json",
     cache_enabled=False,
 )
@@ -72,9 +72,9 @@ RECOMMENDATION_RESPONSE_CONFIG = NodeConfig(
     name="recommendation_response",
     node_type="llm_agent",
     provider="groq",
-    model="llama-3.3-70b-versatile",
-    temperature=0.5,
-    max_tokens=2500,
+    model="meta-llama/llama-4-scout-17b-16e-instruct",  # 30K TPM, MoE 17B — qualité + vitesse
+    temperature=0.4,
+    max_tokens=3000,
     response_format="json",
     cache_enabled=False,
 )
@@ -103,5 +103,19 @@ RESTAURANT_C_CONFIG = NodeConfig(
     cache_enabled=True,
     cache_ttl_seconds=259200,  # 72h
 )
-#meta-llama/llama-4-scout-17b-16e-instruct
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MIGRATION VERS OLLAMA CLOUD PRO ($20/mois)
+# Tous les modèles Groq ci-dessus seront remplacés par Ollama Cloud Pro.
+# Changer provider="groq" → provider="ollama" + model selon table ci-dessous.
+#
+# Node                       Groq actuel (free)                     Ollama futur ($20/mois)
+# ─────────────────────────  ─────────────────────────────────────  ──────────────────────────
+# intent_classifier          llama-3.3-70b-versatile                gpt-oss:120b
+# semantic_node              meta-llama/llama-4-scout-17b-16e       gemini-3-flash-preview
+# day_planner                meta-llama/llama-4-scout-17b-16e       gpt-oss:120b
+# recommendation_response    meta-llama/llama-4-scout-17b-16e       gpt-oss:120b
+# final_response             llama-3.3-70b-versatile                gpt-oss:120b
+# ranking                    llama-3.1-8b-instant                   gpt-oss:120b
+# ══════════════════════════════════════════════════════════════════════════════
 

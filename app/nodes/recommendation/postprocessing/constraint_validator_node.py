@@ -24,7 +24,8 @@ class ConstraintValidatorNode(BaseNode):
 
     Règles appliquées dans l'ordre :
       1. Activité déjà réservée par ce voyageur       → filtre dur, tous modes
-      2. Capacité épuisée (available_spots=0 ET is_available=False) → filtre dur
+      2. is_available=False (capacité épuisée OU hors récurrence) → filtre dur, tous domaines
+         is_available=None (dispo inconnue, ex. SOURCE 2 MongoDB) → conservé, présenté "à confirmer"
       3. Budget restaurant (price_level > plafond)    → filtre soft, ignoré en exploratory
       4. Budget activité  (adult_price > plafond TND) → filtre soft, ignoré en exploratory
 
@@ -53,7 +54,7 @@ class ConstraintValidatorNode(BaseNode):
 
         removed = {
             "already_booked":   0,
-            "no_capacity":      0,
+            "unavailable":      0,
             "budget_restaurant": 0,
             "budget_activity":  0,
         }
@@ -69,12 +70,11 @@ class ConstraintValidatorNode(BaseNode):
                     removed["already_booked"] += 1
                     continue
 
-            # ── RÈGLE 2 : capacité épuisée ────────────────────────────────────
-            if domain == "activity":
-                spots = c.get("available_spots")
-                if spots is not None and int(spots) <= 0 and not c.get("is_available", True):
-                    removed["no_capacity"] += 1
-                    continue
+            # ── RÈGLE 2 : indisponibilité confirmée par la source ─────────────
+            # is_available: True=confirmé | False=indispo (capacité OU récurrence) | None=inconnu (conservé)
+            if c.get("is_available") is False:
+                removed["unavailable"] += 1
+                continue
 
             # ── RÈGLE 3 : budget restaurant (soft) ───────────────────────────
             if domain == "restaurant" and not is_exploratory:

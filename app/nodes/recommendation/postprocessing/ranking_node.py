@@ -1,7 +1,12 @@
 from typing import Any, Dict, List
 
 from app.nodes.core.Base_node import BaseNode, NodeConfig
-from app.config.settings import USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT
+from app.config.settings import (
+    BUSINESS_SCORE_WEIGHT,
+    AVAILABILITY_AGENCY_STRONG_THRESHOLD,
+    AVAILABILITY_UNKNOWN_FACTOR_PROTECTED,
+    AVAILABILITY_UNKNOWN_FACTOR_OPEN,
+)
 
 # Tier → business_score par défaut quand le candidat n'en a pas un explicite
 _TIER_BUSINESS_SCORE: Dict[str, float] = {
@@ -31,6 +36,18 @@ class RankingNode(BaseNode):
             self.logger.info("no candidates to rank")
             return {"ranked_results": [], "total_ranked": 0}
 
+        # ── Pré-passe : facteur dynamique pour dispo inconnue ────────────
+        # Force du meilleur candidat CONFIRMÉ (is_available=True — uniquement SOURCE 1 agence)
+        best_confirmed = max(
+            (self._user_score(c) for c in candidates if c.get("is_available") is True),
+            default=0.0,
+        )
+        unknown_factor = (
+            AVAILABILITY_UNKNOWN_FACTOR_PROTECTED
+            if best_confirmed >= AVAILABILITY_AGENCY_STRONG_THRESHOLD
+            else AVAILABILITY_UNKNOWN_FACTOR_OPEN
+        )
+
         scored: List[Dict] = []
 
         for c in candidates:
@@ -38,15 +55,18 @@ class RankingNode(BaseNode):
 
             user_score     = self._user_score(candidate)
             business_score = self._business_score(candidate)
+            # True=confirmé ×1.0 | None=inconnu ×unknown_factor | False exclu en amont (constraint_validator)
+            # Domaines sans champ is_available (hotel, flight, restaurant) → ×1.0 neutre
+            avail_factor   = unknown_factor if candidate.get("is_available", True) is None else 1.0
 
-            ranked_score = round(
-                USER_SCORE_WEIGHT * user_score
-                + BUSINESS_SCORE_WEIGHT * business_score,
-                4,
-            )
+            # V2 multiplicatif — le business booste les candidats pertinents,
+            # ne sauve jamais un candidat non pertinent (user=0 → ranked=0)
+            business_boost = (1 + BUSINESS_SCORE_WEIGHT * business_score) / (1 + BUSINESS_SCORE_WEIGHT)
+            ranked_score   = round(user_score * business_boost * avail_factor, 4)
 
             candidate["user_score"]     = round(user_score, 4)
             candidate["business_score"] = round(business_score, 4)
+            candidate["availability_factor"] = avail_factor
             candidate["ranked_score"]   = ranked_score
 
             scored.append(candidate)
@@ -61,7 +81,9 @@ class RankingNode(BaseNode):
             top = scored[0]
             self.logger.info(
                 f"ranked={len(scored)} | "
-                f"weights=user:{USER_SCORE_WEIGHT} / business:{BUSINESS_SCORE_WEIGHT} | "
+                f"business_weight={BUSINESS_SCORE_WEIGHT} | "
+                f"avail_mode={'PROTECTED' if unknown_factor == AVAILABILITY_UNKNOWN_FACTOR_PROTECTED else 'OPEN'} "
+                f"(best_confirmed={best_confirmed:.2f}, factor={unknown_factor}) | "
                 f"#1 [{top.get('domain','?')}] {top.get('name','?')} "
                 f"ranked_score={top['ranked_score']}"
             )

@@ -4,82 +4,153 @@ from typing import TypedDict, Annotated, List, Dict, Any, Optional
 
 class GraphState(TypedDict):
 
-    # ── Session ───────────────────────────────────────────────────
+    # ── Session ─────────────────────────────────────────────────────────────
+    # Initialisé par build_initial_state() / main.py
     session_id:          Optional[str]
     conversation_id:     Optional[str]
     user_id:             Optional[str]
-    travellerId:         Optional[str]
-    user_type:           Optional[str]   # "real" | "native"
+    travellerId:         Optional[str]           # → session_bootstrap
+    user_type:           Optional[str]           # → session_bootstrap | load_profile_node  ("real" | "native")
+    suggestion_mode:     Optional[str]           # → session_bootstrap | clarification_checker_node  ("exploratory" | "semi_exploratory" | "precise_plan")
 
-    # ── Géolocalisation (optionnel — fourni par le client mobile) ─
-    user_geolocation:    Optional[Dict[str, Any]]  # {lat, lng} ou None
+    # ── Géolocalisation ──────────────────────────────────────────────────────
+    # Fourni par le client mobile avant l'appel — jamais écrit par un node
+    user_geolocation:    Optional[Dict[str, Any]]  # {lat: float, lng: float} | None
 
-    # ── Message utilisateur ───────────────────────────────────────
-    user_message:        str
-    normalized_message:  Optional[str]
+    # ── Message utilisateur ──────────────────────────────────────────────────
+    # user_message     : main.py
+    # normalized_message : → greeting_node
+    # conversation_history : accumulé manuellement dans main.py
+    user_message:         str
+    normalized_message:   Optional[str]
     conversation_history: List[Dict[str, str]]
 
-    # ── Intent / NLU (intent_classifier_node) ────────────────────
+    # ── Intent / NLU ─────────────────────────────────────────────────────────
+    # → intent_classifier_node
+    # Structure : {primary_intent, secondary_intents, action_type, constraints, language, confidence}
     intent_result: Dict[str, Any]
-    # contient : primary_intent, secondary_intents, action_type,
-    #            constraints, language, confidence
 
-    # ── Profil voyageur (profile_loader_node) ────────────────────
+    # ── Profil voyageur ──────────────────────────────────────────────────────
+    # → load_profile_node (ProfileLoaderNode)
+    # Structure :
+    #   traveller_profile : {traveller_id, first_name, last_name, email, phone,
+    #                        has_partner, child_count, baby_count, traveler_type}
+    #   availability      : {outbound_date, return_date, duration_days, checkin_date}
+    #   route             : {origin, destination}
+    #   travel_preferences: {accommodation: {hotel_id, hotel_name, hotel_stars, hotel_zone,
+    #                                        meal_plan, room_type, nights, booked_services,
+    #                                        booked_service_names},
+    #                        flights: {outbound: {}, return: {}},
+    #                        transfer: {title, from, to, duration_minutes, type}}
+    #   tourist_group     : {tourist_group_id, tourist_group_name, agency_name, tour_operator_name}
+    #   tags              : {tags: [...], traveller_tags: [...]}   ← snake_case
+    #   voucher_id        : str
     profile_data: Dict[str, Any]
 
-    # ── Contexte fusionné (context_merger_node) ───────────────────
+    # ── Contexte fusionné ────────────────────────────────────────────────────
+    # → context_merger_node  (fusion intent_result + profile_data)
+    # Structure : {origin, destination, destination_source, hotel_name,
+    #              start_date, end_date, duration_days, natural_date_text,
+    #              travelers, budget_level, interests,
+    #              activity_preferences, restaurant_preferences, flight_preferences,
+    #              accommodation_preferences, is_family,
+    #              primary_intent, secondary_intents, action_type}
     merged_context: Dict[str, Any]
 
-    # ── Clarification (clarification_checker_node) ────────────────
+    # ── Disponibilité / validation commerciale ───────────────────────────────
+    # → availability_checker_node
+    # traveller_available : alias de trip_is_ongoing (bool)
+    # availability_result : {trip_is_ongoing, outbound_date, return_date, days_remaining,
+    #                        hotel_name, destination, destination_source,
+    #                        booked_activity_ids, booked_time_slots}
+    traveller_available: Optional[bool]
+    availability_result: Optional[Dict[str, Any]]
+    # → availability_checker_node — position temporelle dans le séjour
+    # {day_index (1=arrivée), total_days, is_first_day, is_last_day,
+    #  arrival_time (landing vol aller), departure_time (takeoff vol retour)}
+    # Tout None/False si pas de voyage en cours (USER NATIF ou hors séjour)
+    trip_position: Optional[Dict[str, Any]]
+    # → availability_checker_node — ancres booking immuables (déjà payées)
+    # {meal_plan, breakfast/lunch/dinner_included, hotel_name, hotel_zone,
+    #  booked_services: [{name, date, status}], transfer}
+    # None/vide pour USER NATIF
+    booking_anchors: Optional[Dict[str, Any]]
+    # → day_skeleton_node — structure de journée instantanée (Python pur)
+    # {destination, duration_days, day_context, days: [{day_number, date, mode, slots}], display_text}
+    # None si intent hors day_planning/trip_package
+    day_skeleton: Optional[Dict[str, Any]]
+
+    # ── Clarification ────────────────────────────────────────────────────────
+    # → clarification_checker_node
     missing_required:       List[str]
     missing_optional:       List[str]
     blocking_fields:        List[str]
-    suggestion_mode:        Optional[str]
-    decision_confidence:    Optional[str]
+    decision_confidence:    Optional[str]        # "low" | "medium" | "high"
     clarification_needed:   bool
     clarification_question: Optional[str]
     clarification_focus:    List[str]
-    clarification_type:     Optional[str]
+    clarification_type:     Optional[str]        # UNUSED — jamais écrit par clarification_checker_node
 
-    # ── Routage ───────────────────────────────────────────────────
+    # ── Routage ──────────────────────────────────────────────────────────────
+    # → clarification_checker_node | BaseNode.fallback
+    # Valeurs : "continue" | "ask_clarification" | "error"
     next_action: Optional[str]
 
-    # ── Disponibilité / validation commerciale ────────────────────
-    traveller_available: Optional[bool]
-    availability_result: Optional[Dict[str, Any]]
-
-    # ── Météo ─────────────────────────────────────────────────────
+    # ── Météo ────────────────────────────────────────────────────────────────
+    # → weather_node
     weather_context: Optional[Dict[str, Any]]
-    weather:         Dict[str, Any]
+    weather:         Dict[str, Any]              # DEPRECATED — jamais écrit, utiliser weather_context
 
-    # ── Sémantique (semantic_node) ────────────────────────────────
-    global_keywords:    List[str]
-    contextual_keywords: List[str]
-    semantic_query:     Optional[str]
+    # ── Sémantique ───────────────────────────────────────────────────────────
+    # → semantic_node
+    global_keywords:    List[str]                # camelCase, alignés sur l'intent
+    contextual_keywords: List[str]               # camelCase, contexte voyage spécifique
+    semantic_query:     Optional[str]            # requête naturelle max 50 chars
     semantic_metadata:  Optional[Dict[str, Any]]
     semantic_cache_key: Optional[str]
 
-    # ── Recommandation — candidats domaine ────────────────────────
+    # ── Orchestration ────────────────────────────────────────────────────────
+    # → orchestrator_node
+    # Ex : ["hotel_node", "activity_node", "restaurant_node"]
     requested_services:    List[str]
+
+    # ── Candidats par domaine ────────────────────────────────────────────────
+    # → hotel_node | flight_node | restaurant_node | activity_node
     hotel_candidates:      List[Dict[str, Any]]
     flight_candidates:     List[Dict[str, Any]]
     restaurant_candidates: List[Dict[str, Any]]
     activity_candidates:   List[Dict[str, Any]]
 
-    # ── Recommandation — post-processing ─────────────────────────
-    candidates:    List[Dict[str, Any]]   # fusion tous domaines
-    ranked_results: List[Dict[str, Any]]  # après ranking_node
-    total_ranked:   int                   # nombre de candidats classés
-    recommendations: Dict[str, Any]       # après recommendation_composer
-    itinerary:     Dict[str, Any]         # après day_planner_node
+    # ── Post-processing ──────────────────────────────────────────────────────
+    # candidates     : → data_merger_node → constraint_validator_node  (fusion + filtrage)
+    # ranked_results : → ranking_node  (score = 0.70 × user_score + 0.30 × business_score)
+    # total_ranked   : → ranking_node
+    # recommendations: RÉSERVÉ — recommendation_composer_node (Phase 5, non implémenté)
+    # itinerary      : → day_planner_node  (None si intent hors day_planning/trip_package)
+    candidates:      List[Dict[str, Any]]
+    ranked_results:  List[Dict[str, Any]]
+    total_ranked:    int
+    recommendations: Dict[str, Any]             # RÉSERVÉ — non utilisé actuellement
+    itinerary:       Dict[str, Any]
 
-    # ── Réponse ───────────────────────────────────────────────────
-    final_answer: Optional[str]
+    # ── Réponse finale ───────────────────────────────────────────────────────
+    # final_answer          : → final_response_node | recommendation_response_node
+    # response_agent_result : → final_response_node  (objet structuré complet)
+    # follow_up_needed      : → final_response_node  (bool — question de suivi détectée)
+    # intent_handled        : → final_response_node  (intent traité dans cette réponse)
+    # response_confidence   : → final_response_node  (0.0 – 1.0)
+    final_answer:          Optional[str]
+    response_agent_result: Optional[Dict[str, Any]]
+    follow_up_needed:      Optional[bool]
+    intent_handled:        Optional[str]
+    response_confidence:   Optional[float]
 
-    # ── Apprentissage ─────────────────────────────────────────────
+    # ── Apprentissage ────────────────────────────────────────────────────────
+    # RÉSERVÉ — feedback_logger_node (Phase 5, non implémenté)
     feedback_event: Dict[str, Any]
 
-    # ── Technique — accumulateurs LangGraph ───────────────────────
+    # ── Technique — accumulateurs LangGraph (operator.add) ───────────────────
+    # Chaque node peut y appendre via BaseNode.__call__ (metrics) / BaseNode.fallback (errors)
     errors:       Annotated[List[Dict], operator.add]
     node_metrics: Annotated[List[Dict[str, Any]], operator.add]
 
@@ -101,6 +172,7 @@ def build_initial_state(
         "user_id":           user_id,
         "travellerId":       travellerId,
         "user_type":         None,
+        "suggestion_mode":   None,
         "user_geolocation":  None,
 
         # Message
@@ -116,11 +188,17 @@ def build_initial_state(
         # Contexte fusionné
         "merged_context": {},
 
+        # Disponibilité
+        "traveller_available": None,
+        "availability_result": None,
+        "trip_position":       None,
+        "booking_anchors":     None,
+        "day_skeleton":        None,
+
         # Clarification
         "missing_required":       [],
         "missing_optional":       [],
         "blocking_fields":        [],
-        "suggestion_mode":        None,
         "decision_confidence":    None,
         "clarification_needed":   False,
         "clarification_question": None,
@@ -130,13 +208,9 @@ def build_initial_state(
         # Routage
         "next_action": None,
 
-        # Disponibilité
-        "traveller_available": None,
-        "availability_result": None,
-
         # Météo
         "weather_context": None,
-        "weather":         {},
+        "weather":         {},           # DEPRECATED
 
         # Sémantique
         "global_keywords":     [],
@@ -145,7 +219,7 @@ def build_initial_state(
         "semantic_metadata":   {},
         "semantic_cache_key":  None,
 
-        # Candidats domaine
+        # Orchestration + candidats domaine
         "requested_services":    [],
         "hotel_candidates":      [],
         "flight_candidates":     [],
@@ -160,7 +234,11 @@ def build_initial_state(
         "itinerary":        {},
 
         # Réponse
-        "final_answer": None,
+        "final_answer":          None,
+        "response_agent_result": None,
+        "follow_up_needed":      None,
+        "intent_handled":        None,
+        "response_confidence":   None,
 
         # Apprentissage
         "feedback_event": {},

@@ -43,7 +43,18 @@ class ContextMergerNode(BaseNode):
         new_origin = constraints.get("origin") or profile_route.get("origin")
         new_destination = constraints.get("destination") or profile_route.get("destination")
         if new_origin:      merged["origin"]      = new_origin
-        if new_destination: merged["destination"] = new_destination
+        if new_destination:
+            try:
+                from app.services.availability_service import _match_city_in_text
+                canonical = _match_city_in_text(new_destination)
+                if canonical:
+                    parts = [p.strip() for p in canonical.split("/")]
+                    input_lower = new_destination.lower().strip()
+                    match = next((p for p in parts if p.lower() == input_lower), None)
+                    new_destination = match or parts[0]
+            except Exception:
+                pass
+            merged["destination"] = new_destination
 
         # -----------------------------
         # DESTINATION depuis hôtel profil (L1 adresse dict, L2 nom hôtel)
@@ -51,37 +62,28 @@ class ContextMergerNode(BaseNode):
         # -----------------------------
         if not merged.get("destination"):
             try:
-                from app.services.availability_service import _extract_destination_from_hotel
-                geolocation = state.get("user_geolocation")
-                accommodations = profile_data.get("accommodations") or []
-                if accommodations:
-                    active = next(
-                        (a for a in accommodations if a.get("status") not in ("Cancelled",)),
-                        accommodations[0],
-                    )
-                    hotel_info = active.get("hotel") or {}
-                    if hotel_info.get("name"):
-                        merged["hotel_name"] = hotel_info["name"]
-                    dest = _extract_destination_from_hotel(hotel_info, geolocation)
-                    if dest:
-                        merged["destination"]        = dest
+                accommodation = profile_travel.get("accommodation") or {}
+                hotel_zone    = accommodation.get("hotel_zone")
+                hotel_name    = accommodation.get("hotel_name")
+                if hotel_name:
+                    merged["hotel_name"] = hotel_name
+                if hotel_zone:
+                    merged["destination"]        = hotel_zone
+                    merged["destination_source"] = "hotel_profile"
+                elif hotel_name:
+                    from app.services.availability_service import _match_city_in_text
+                    city = _match_city_in_text(hotel_name)
+                    if city:
+                        merged["destination"]        = city
                         merged["destination_source"] = "hotel_profile"
             except Exception as e:
                 self.logger.warning(f"[ContextMerger] hotel dest extraction: {e}")
 
         # Dates de voyage depuis profil (outbound/return)
         if not merged.get("start_date"):
-            merged["start_date"] = (
-                profile_data.get("outboundDate")
-                or profile_data.get("outbound_date")
-                or profile_availability.get("departure_date")
-            )
+            merged["start_date"] = profile_availability.get("outbound_date")
         if not merged.get("end_date"):
-            merged["end_date"] = (
-                profile_data.get("returnDate")
-                or profile_data.get("return_date")
-                or profile_availability.get("return_date")
-            )
+            merged["end_date"] = profile_availability.get("return_date")
 
         # -----------------------------
         # TRAVELERS — preserve si valeur explicite > 1 déjà connue
@@ -102,7 +104,8 @@ class ContextMergerNode(BaseNode):
         if new_budget:
             merged["budget_level"] = new_budget
         elif "budget_level" not in merged:
-            raw_stars = profile_travel.get("hotel_stars")
+            accommodation_data = profile_travel.get("accommodation") or {}
+            raw_stars = accommodation_data.get("hotel_stars") or accommodation_data.get("stars")
             match = re.search(r'\d+', str(raw_stars)) if raw_stars is not None else None
             hotel_stars = int(match.group()) if match else 0
             merged["budget_level"] = (
@@ -116,7 +119,7 @@ class ContextMergerNode(BaseNode):
         # -----------------------------
         tags_data = profile_data.get("tags", {}) or {}
         tags = tags_data.get("tags") or []
-        traveller_tags = tags_data.get("travellerTags") or []
+        traveller_tags = tags_data.get("traveller_tags") or []
 
         if isinstance(tags, str):
             tags = tags.split(",")
@@ -139,10 +142,11 @@ class ContextMergerNode(BaseNode):
             merged[pref_key] = list(set(existing_prefs + new_prefs))
 
         # ACCOMMODATION — accumulation + profil
+        _acc = profile_travel.get("accommodation") or {}
         profile_acc = [
-            profile_travel.get("meal_plan"),
-            profile_travel.get("room_type"),
-            profile_travel.get("hotel_name"),
+            _acc.get("meal_plan"),
+            _acc.get("room_type"),
+            _acc.get("hotel_name"),
         ]
         new_acc = constraints.get("accommodation_preferences") or []
         existing_acc = merged.get("accommodation_preferences") or []

@@ -33,13 +33,31 @@ La vraie innovation de ZenifyTrip est la combinaison de :
 | **Contextual AI** | Météo, localisation, saison intégrés dans les recommandations |
 | **Multi-Agent Orchestration** | Planner et Orchestrator séparés — pipeline de 17 étapes |
 | **Conversational Planning** | Chatbot LLM naturel — dialogue progressif et affinement |
+| **Booking-Aware Day Planning** | Le day planner planifie **AUTOUR** de ce que le voyageur a déjà payé (repas inclus, services bookés, transfert, heures de vol) — jamais à côté, jamais en doublon |
+| **Instant Skeleton** | La journée apparaît en squelette en < 2s (Python pur, streaming LangGraph), les détails se remplissent pendant que l'utilisateur lit |
+| **Session Memory** | Rejets/préférences implicites minés de la conversation ("non pas de plage") — un candidat rejeté n'est jamais reproposé, même mieux scoré |
 
 > Le système n'est pas seulement un assistant IA. C'est un **moteur commercial intelligent** pour une agence de voyage.
 
-**Score final de recommandation :**
+### Principe Directeur — Day Planner (VERSION 6)
+
+> Le day planner n'est **pas un générateur d'itinéraire ni un template** ("2 activités + 2 restaurants" = interdit).
+> C'est un **ami local expert** qui raisonne sur la SITUATION du voyageur : quel jour de son séjour (J1 arrivée tardive ≠ dernier jour départ 14h ≠ jour normal), ce qu'il a déjà payé (petit-déj inclus → jamais de café payant le matin ; All Inclusive → les restaurants deviennent des "expériences optionnelles" ; spa booké → slot ancré immuable), qui il est (famille/couple/solo, bébé → rythme lent), la météo du moment, et ce qu'il a aimé/rejeté dans la conversation.
+> Test de qualité de chaque sortie : *est-ce qu'un ami local qui connaît cette personne et son dossier aurait dit ça ?*
+
+**Score final de recommandation (V2 multiplicatif — session 2026-07-05) :**
 ```
-Score = 70% user_score + 30% business_score
-         └── personnalisé        └── orienté commercialement
+ranked_score = user_score × business_boost × availability_factor
+
+business_boost      = (1 + 0.30 × business_score) / 1.30
+                      → le business BOOSTE les candidats pertinents,
+                        ne sauve JAMAIS un candidat hors sujet (user=0 → ranked=0)
+availability_factor = 1.0 si dispo confirmée (True)
+                      | dynamique si dispo inconnue (None, ex. MongoDB) :
+                        agence forte (best user_score ≥ 0.60) → ×0.60 (PROTECTED — agence imbattable)
+                        agence faible ou absente             → ×0.90 (OPEN — pépite externe remonte)
+Constantes dans settings.py : BUSINESS_SCORE_WEIGHT, AVAILABILITY_AGENCY_STRONG_THRESHOLD,
+AVAILABILITY_UNKNOWN_FACTOR_PROTECTED, AVAILABILITY_UNKNOWN_FACTOR_OPEN
 ```
 
 > Projet de stage chez ZenifyTrip. Le rapport académique se trouve dans `../rapport/main.docx` (style Times New Roman, français académique, structure par chapitres — voir `rapport/CLAUDE.md`).
@@ -61,6 +79,41 @@ Score = 70% user_score + 30% business_score
 python -m app.main
 ```
 L'app est une boucle CLI. L'utilisateur tape des messages, Ctrl+C pour quitter.
+
+## Règle Critique — Centralisation dans `settings.py` ⚠️ NE JAMAIS OUBLIER
+
+> **Toute valeur globale susceptible de changer doit être déclarée dans `settings.py` et importée depuis là.**
+
+Sont concernées :
+- Valeurs qui varient selon un **abonnement ou plan cloud** (Redis max_connections, LLM provider, quotas API)
+- Valeurs **critiques redondantes** utilisées à plusieurs endroits dans le projet (TTLs, poids de scoring, préfixes de cache)
+- Toute constante de **configuration infrastructure** (URLs, timeouts, limites)
+
+### ✅ Correct
+```python
+# settings.py
+REDIS_MAX_CONNECTIONS = int(os.getenv("REDIS_MAX_CONNECTIONS", "50"))
+
+# redis_config.py
+from app.config.settings import REDIS_MAX_CONNECTIONS
+pool = redis.ConnectionPool(max_connections=REDIS_MAX_CONNECTIONS, ...)
+```
+
+### ❌ Interdit — valeur hardcodée dans un service
+```python
+# redis_config.py — JAMAIS fera bloquer toute review
+pool = redis.ConnectionPool(max_connections=50, ...)
+```
+
+### Exemples de valeurs déjà centralisées dans `settings.py`
+| Constante | Usage | Change si... |
+|-----------|-------|-------------|
+| `REDIS_MAX_CONNECTIONS` | Pool Redis | Changement plan Redis Cloud |
+| `PROFILE_CACHE_MAX_TTL_SECONDS` | TTL profil Redis | Décision produit |
+| `USER_SCORE_WEIGHT` / `BUSINESS_SCORE_WEIGHT` | Ranking 70/30 | Ajustement algo |
+| `PROFILE_CACHE_PREFIX` | Namespace clés Redis | Multi-env staging/prod |
+
+---
 
 ## Architecture : Graphe LangGraph
 
@@ -358,14 +411,34 @@ TypedDict central — source unique de vérité. Champs principaux :
 | Technique | `errors` (`Annotated[List, operator.add]`), `node_metrics` (`Annotated[List, operator.add]`) |
 
 ### Configurations LLM (`nodes/definitions.py`)
-| Config | Provider | Modèle | Usage |
-|--------|----------|--------|-------|
-| `INTENT_CLASSIFIER_CONFIG` | groq | llama-3.3-70b-versatile | Classification d'intention |
-| `SEMANTIC_CONFIG` | ollama | gemini-3-flash-preview | Extraction sémantique |
-| `ORCHESTRATOR_CONFIG` | ollama | gpt-oss:120b | Orchestration recommandations |
-| `RANKING_CONFIG` | ollama | gpt-oss:120b | Classement des résultats |
-| `DAY_PLANNER_CONFIG` | ollama | gpt-oss:120b | Planification journalière |
-| `RESPONSE_CONFIG` | ollama | gpt-oss:120b | Formatage réponse (non utilisé, FinalResponseNode utilise Groq) |
+
+> Configuration actuelle : **Groq (free tier)** — migration future vers Ollama Cloud Pro ($20/mois) documentée dans `definitions.py`.
+
+| Config | Provider | Modèle actuel (Groq) | TPM | Usage |
+|--------|----------|----------------------|-----|-------|
+| `INTENT_CLASSIFIER_CONFIG` | groq | llama-3.3-70b-versatile | 6K | Classification d'intention |
+| `SEMANTIC_CONFIG` | groq | meta-llama/llama-4-scout-17b-16e-instruct | 30K | Extraction sémantique |
+| `RANKING_CONFIG` | groq | llama-3.1-8b-instant | 30K | Ranking (Python pur, config secours) |
+| `DAY_PLANNER_CONFIG` | groq | meta-llama/llama-4-scout-17b-16e-instruct | 30K | Planification journalière |
+| `RESPONSE_CONFIG` | groq | llama-3.3-70b-versatile | 6K | Réponse clarification (Agent 1) |
+| `RECOMMENDATION_RESPONSE_CONFIG` | groq | meta-llama/llama-4-scout-17b-16e-instruct | 30K | Présentation recommandations (Agent 2) |
+
+#### Justification des choix de modèles — décisions documentées pour le rapport
+
+**`llama-3.3-70b-versatile` → intent_classifier + final_response**
+Modèle 70B dense de Meta. Choisi pour les tâches nécessitant une compréhension fine du français et une classification d'intention précise. Température 0.0 pour classification déterministe. Limite : 6K TPM sur free tier — acceptable car ces nodes ne s'exécutent qu'une fois par requête avec des prompts courts (<800 tokens).
+
+**`meta-llama/llama-4-scout-17b-16e-instruct` → semantic_node + day_planner + recommendation_response**
+Architecture MoE (Mixture of Experts) : 17B paramètres totaux, 16 experts activés sélectivement. Qualité proche d'un 70B dense sur les tâches de génération structurée, mais limite TPM de 30K (5× supérieure au 70B). Choisi pour les nodes avec des prompts longs (>2000 tokens) ou des sorties JSON structurées complexes.
+
+> **Décision documentée — semantic_node (2026-07-03) :**
+> Le modèle initial `llama-3.1-8b-instant` (8B params) a été remplacé par `llama-4-scout-17b-16e-instruct` suite à un bug critique : le modèle 8B, confronté au prompt de 300 lignes du `semantic_node` (incluant des sections PROCESSING: avec logique conditionnelle), générait du code Python (`def process_intent(merged_context, weather_context)`) au lieu de JSON. Cause : le modèle 8B ne distingue pas les instructions *décrivant* une logique (à exécuter mentalement) des instructions *demandant* du code. Le modèle 17B MoE suit correctement cette distinction. Validation : 0 erreur `Semantic LLM error` après migration, 26/28 assertions PASS (les 2 restantes = Scénario 8 / 401 API indépendant).
+
+**`llama-3.1-8b-instant` → ranking (config de secours)**
+Modèle léger 8B. Utilisé uniquement comme configuration de secours pour le ranking node, qui est en réalité implémenté en Python pur (pas d'appel LLM). Le modèle n'est jamais appelé en production normale.
+
+**Migration future → Ollama Cloud Pro ($20/mois)**
+Voir table complète dans `app/config/definitions.py`. Les modèles Groq actuels seront remplacés par `gpt-oss:120b` (équivalent GPT-4o) et `gemini-3-flash-preview` selon les nodes.
 
 ### Service LLM (`services/llm_service.py`)
 `call_llm(prompt, model, provider, ...)` dispatche vers `call_groq_llm` ou `call_ollama_llm`. Client Ollama initialisé à l'import — **plante si `OLLAMA_API_KEY` est None** (voir bugs connus).
@@ -1690,6 +1763,68 @@ START → [greeting] + [session_bootstrap]
 
 ---
 
+### VERSION 6 — Day Planner Contextuel + Scoring V2 ✓ (sessions 2026-07-05 → 2026-07-08)
+
+**Vision validée** : voir "Principe Directeur — Day Planner" en tête de fichier. E2E **8/8 PASS** (2026-07-08).
+
+#### A. Corrections d'origine (session 2026-07-05)
+
+| Fix | Fichiers | Règle |
+|-----|----------|-------|
+| **Normalisation destination** | `context_merger_node.py` | `_match_city_in_text()` appliqué à la source : `"Hammamet&Tunis"` → `"Hammamet"`, `"Yasmine Hammamet"` → `"Hammamet"`. Aucun split par séparateur — la fonction scanne le texte brut (133 villes) |
+| **Contrat `is_available` tri-state** | `activity_schema.py`, sources, `constraint_validator` | `True`=confirmé \| `False`=indispo \| `None`=inconnu (SOURCE 2 MongoDB ne ment plus). **SEUL point d'exclusion** : `constraint_validator` (`is_available is False` → exclu, tous domaines). Ranking/nodes trient, ne filtrent JAMAIS |
+| **Scoring V2 multiplicatif** | `ranking_node.py`, `settings.py`, `activity_service/scoring.py` | Formule en tête de fichier. Budget continu partagé (`budget_proximity_score` : plein dans la fourchette, décroissance linéaire, nul à 2×plafond) — une seule implémentation pour les 2 sources |
+| **Sélection intelligente** | `recommendation_response_node.py` | Lit `ranked_results` (V2) en priorité, tri par `_final_score` avant coupe, plafond par intent (day_planning : 16→4), diversité max 1/(domain, zone) avec complétion par score |
+
+#### B. Day Planner Contextuel — les 8 modifications (session 2026-07-08)
+
+| # | Modification | Fichier(s) |
+|---|--------------|-----------|
+| ① | `trip_position` — J-index, first/last day, heures de vol | `availability_service.py` → state |
+| ② | `booking_anchors` — meal_plan normalisé (AI/FB/HB/BB/RO→flags, inconnu→None), booked_services datés, transfert | `availability_service.py` → state |
+| ③ | `day_planner_node` V2 — lit trip_position/anchors/`traveler_type` du voucher (ne recalcule plus) | `day_planner_node.py` |
+| ④ | Prompt V2 — SITUATION AWARENESS + BOOKING ANCHORS (ancres immuables) + DAY SKELETON (contrat de structure) + SESSION SIGNALS | `day_planner_prompt.py` |
+| ⑤ | `_select_for_day_planning` slot-driven — 9 cas : dernier jour (matinée + souvenirs), J1 tardif (soirée seule), J1 matinal (demi-journée zone hôtel), baby (plafond 3, adventure exclu), avant-dernier jour (max 1 longue), jour chaud, service booké (-1 slot), AI (1 resto "expérience"), natif multi-jours (+1 hébergement) | `recommendation_response_node.py` |
+| ⑥ | `day_skeleton_node` — squelette Python pur <10ms, labels FR/EN/AR, ancres posées + slots "open". Câblé `clarification_checker → day_skeleton → weather_node` | `day_skeleton_node.py` (nouveau) |
+| ⑦ | `main.py` → `graph.stream(stream_mode="updates")` — squelette affiché à 0.2s (Redis chaud) / ~2-3s (froid), réponse complète ~10s | `main.py` |
+| ⑧ | Mémoire session MVP — mining rule-based de `conversation_history` : marqueur + mot-clé dans une **fenêtre < 5 mots** ("pas de plage"→rejet ; "pas de problème avec la plage"→rien), neutralisateurs ("pas mal"), rejet prime sur like. Rejets exclus du pool + transmis au LLM | `utils/session_memory.py` (nouveau) |
+
+**Utils partagés créés** (jamais de duplication) : `app/utils/time_utils.py` (`hour_of`), `app/utils/text_utils.py` (`normalize_text` — `availability_service` migré dessus).
+
+#### Règles critiques VERSION 6 — NE PAS CASSER
+
+1. **Jour planifié = `intent_result.constraints.start_date` explicite, sinon aujourd'hui — JAMAIS `merged.start_date`** (pollué par l'`outbound_date` du contrat via context_merger → planifierait le J1 du séjour au lieu d'aujourd'hui). Même règle que `check_availability`.
+2. **Une règle métier = UN seul nœud responsable** : exclusion dure → `constraint_validator` uniquement ; ranking/tri → ordonnent seulement ; response → présente seulement. Jamais de patch dispersé.
+3. **Les ancres booking sont immuables** : un service booké/un repas inclus ne peut jamais être concurrencé par un candidat sur le même créneau. Le squelette vu par l'utilisateur est le contrat de structure du day_planner.
+4. **Sources honnêtes sur la dispo** : une source qui ne vérifie pas la disponibilité déclare `None`, jamais `True`.
+5. **Signaux lus, jamais recalculés** : météo → `indoor_score`/`outdoor_score` de weather_node (pas les flags bruts) ; intérêts → vocabulaire normalisé de l'intent_classifier (mapping exact `_INTEREST_TO_ACTIVITY_TYPE`, pas de matching texte libre).
+
+#### Topologie graphe VERSION 6
+
+```
+START → [greeting] + [session_bootstrap]
+      → [intent_classifier] + [profile_loader (Redis-first)]
+      → [context_merge (destination normalisée)] → [availability_checker (+trip_position +booking_anchors)]
+      → [clarification_checker]
+      → (conditionnel)
+          ├── ask_clarification / greeting / unsupported → [final_response] → END
+          └── continue → [day_skeleton (émis en stream)] → [weather_node] → [semantic_node] → [orchestrator]
+                             ↓ (fan-out conditionnel)
+                hotel | flight | restaurant | activity
+                             ↓ (fan-in)
+                [data_merger] → [constraint_validator (exclusion unique)] → [ranking_node (V2 multiplicatif)]
+                             ↓
+                [day_planner (remplit le squelette)] → [recommendation_response (sélection slot-driven)] → END
+```
+
+#### Restant après VERSION 6
+
+- [ ] Phase 5 — mémoire Redis cross-session (`interactions:{traveller_id}`) : le point d'injection (`session_signals`) est déjà en place
+- [ ] `app/test_e2e.py` scénario 8 (USER RÉEL) dépend du token API staging — il expire régulièrement
+- [ ] B1 `parse_json_safely` (sanitizer newlines) · B2 retry Groq 429 · TPM Groq Dev Tier pour 100 users simultanés
+
+---
+
 ## Bugs Connus / TODO (par priorité)
 1. **`llm_service.py` crash à l'import** — `"Bearer " + os.getenv("OLLAMA_API_KEY")` plante si `OLLAMA_API_KEY` est `None`
 2. **`.env` syntaxe bash** — les lignes `export OLLAMA_API_KEY=...` et `export OLLAMA_BASE_URL=...` utilisent la syntaxe bash, ignorée par python-dotenv
@@ -2172,3 +2307,161 @@ Les métriques évaluées incluent notamment :
 Le benchmark vide volontairement le cache avant chaque exécution afin de mesurer les performances réelles des services externes et non les performances du cache. Les résultats sont ensuite agrégés pour identifier l'approche offrant le meilleur compromis entre qualité des données, coût, rapidité et pertinence des recommandations.
 
 Ce benchmark constitue l'outil principal de validation des choix d'architecture du système de recommandation ZenifyTrip et permet de justifier objectivement les décisions techniques retenues pour la mise en production.
+
+---
+
+## etude_de_existant_by_claude_code
+
+> Recherche concurrentielle menée le 2026-07-03 via deep-research (fan-out web search + vérification adversariale 3-votes). Couvre les Phases 1 (benchmark) et 2 (synthèse comparative) de la mission "architecture concurrente ZenifyTrip".
+
+### Note de transparence sur la fiabilité de cette recherche
+
+La recherche automatisée a rencontré une limite de quota API en cours de vérification adversariale. Sur 53 affirmations extraites de 15 sources, 25 ont été mises en vérification mais 57 des 95 agents ont échoué (limite de session) → seulement **5 affirmations confirmées, 1 réfutée, 19 non vérifiées** (ni confirmées ni infirmées, faute d'avoir pu voter).
+
+**Couverture réelle confirmée par sources vérifiées : 2 acteurs sur 9** (Expedia/Romie, Mindtrip.ai). Pour Booking.com, Google Travel/Gemini, Layla AI, Wonderplan/GuideGeek et Hopper : zéro affirmation n'a survécu à la vérification — silence de la recherche, pas preuve d'absence d'architecture IA.
+
+**Aucun framework d'orchestration (LangGraph, LangChain, CrewAI, AutoGen) n'a été confirmé publiquement pour aucun des 9 acteurs** — angle mort réel et documenté du marché : ces entreprises ne publient pas leur stack d'orchestration.
+
+Légende du tableau :
+- 🟢 **Vérifié** — confirmé par vote adversarial 3-0 ou 2-1 sur sources indépendantes
+- 🟡 **Rapporté** — présent dans une source primaire/secondaire fiable (communiqué officiel, TechCrunch, Wikipedia) mais non passé par la vérification adversariale (erreur d'infra, pas un rejet)
+- ⚪ **Connaissance générale** — connaissance externe non confirmée par cette recherche spécifique — à vérifier avant citation dans le rapport PFE
+
+### Phase 1 — Tableau comparatif des 9 acteurs
+
+| Acteur | Architecture | Orchestration | LLM(s) | Personnalisation | Temps réel | Anti-hallucination | Statut |
+|---|---|---|---|---|---|---|---|
+| **Expedia — Romie** | Assistant conversationnel multi-canal (SMS group chat, iMessage, WhatsApp, email, app), alpha sur EG Labs depuis mai 2024. Lit les emails/SMS pour extraire réservations. | Non confirmé publiquement | Mix de modèles **in-house + OpenAI** ; **ChatGPT spécifiquement** pour iMessage/WhatsApp (confiance moyenne, vote partagé 1-1) | 🟡 Construit une mémoire des interactions (types d'hôtel, préférences alimentaires) — source ZenML LLMOps DB, non vérifié adversairement | 🟡 Monitoring météo/perturbations pour proposer des alternatives — non vérifié | Non documenté publiquement | 🟢 Identité/mission vérifiée · 🟡 détails techniques rapportés non vérifiés |
+| **Mindtrip.ai** | Assistant conversationnel "agentic AI" pour réservation de vols, lancé mai 2026 avec Sabre + PayPal | Non confirmé | Non confirmé publiquement (le partenariat porte sur les données, pas sur le LLM) | 🟡 "Apprend des préférences voyageur dans le temps" (marketing Sabre, vote 1-0 partiel) | 🟢 **Vérifié** : Sabre Mosaic — Air APIs "agentic-ready", 420+ compagnies, tarifs/dispo/réservation en direct dans le chat | 🟢 **Vérifié** : paiement 100% in-chat via PayPal (Pay in 4/Pay Monthly), zéro redirection externe. ❌ Réfuté : l'idée qu'un agent "analyse des combinaisons de vols en coulisses" n'est pas soutenue par les sources | 🟢 2 claims solides sur intégration paiement/data temps réel |
+| **Kayak — Ask AI / AI Mode** | Recherche conversationnelle combinant inventaire propriétaire Kayak + LLM (Kayak.ai, testé dès avril 2024) | Non confirmé | 🟡 **ChatGPT/OpenAI** — rapporté par TechCrunch (oct. 2025) et PYMNTS ("a ChatGPT just built for travel"), non vérifié adversairement | Non documenté | 🟡 Tarifs/dispo mis à jour en direct dans la conversation — rapporté, non vérifié | Non documenté | 🟡 Sourcé (TechCrunch, blog officiel Kayak) mais pas passé la vérification |
+| **TripAdvisor — AI Assistant / Trip Planner** | Assistant conversationnel grounded sur données propriétaires (avis voyageurs, forums, fiches établissements) | Non confirmé | Non confirmé (le blog officiel évoque un fine-tuning mais pas le modèle de base) | 🟡 **"User graph"** — représentation vectorielle multi-dimensionnelle de l'engagement utilisateur (hôtels, attractions, food) — source case-study Qdrant | 🟡 **Qdrant** en base vectorielle pour la recherche sémantique — 1 vote confirmant sur 3, non concluant | 🟡 Grounding revendiqué sur données propriétaires plutôt que connaissance paramétrique du LLM — rapporté, non vérifié | 🟡 Piste technique la plus concrète du benchmark (RAG + vector DB) mais non confirmée par vote |
+| **Booking.com — AI Trip Planner** | ⚪ Chatbot de planification lancé en 2023, un des premiers partenaires plugin ChatGPT d'OpenAI | ⚪ Non documenté | ⚪ **GPT (OpenAI)** — largement rapporté par la presse à l'époque du lancement (2023), non retrouvé/reconfirmé dans cette passe | Aucune donnée trouvée | Aucune donnée trouvée | Aucune donnée trouvée | ⚪ **Angle mort de cette recherche** — à re-creuser spécifiquement |
+| **Google Travel / Gemini for Travel** | ⚪ Fonctionnalités de planification IA intégrées à Google Flights/Hotels/Search, propulsées par Gemini | ⚪ Interne Google, non documenté publiquement | ⚪ **Gemini** (famille de modèles Google) | Aucune donnée confirmée dans cette recherche | ⚪ Intégration native probable avec Google Maps/Flights/météo (non sourcé ici) | Aucune donnée | ⚪ **Angle mort** — recherche n'a remonté aucune source exploitable |
+| **Hopper** | ⚪ Historiquement moteur de **prédiction de prix par ML propriétaire** (pas du LLM) ; ajout de fonctionnalités génératives/agentic plus récemment (VentureBeat évoque un agent de réservation autonome) | Aucune donnée fiable | Aucune donnée confirmée | Aucune donnée | Aucune donnée | Aucune donnée | ⚪ Seule source trouvée jugée "peu fiable", 0 claim retenu — **angle mort quasi total** |
+| **Layla AI** | Aucune donnée trouvée | Aucune donnée | Aucune donnée | Aucune donnée | Aucune donnée | Aucune donnée | ⚪ **Angle mort complet** |
+| **Wonderplan / GuideGeek** | GuideGeek : distribué via WhatsApp/Instagram DM, positionné comme concierge voyage | Aucune donnée | 🟡 **ChatGPT/OpenAI** — rapporté par Wikipedia, non vérifié ; 🟡 RLHF revendiqué avec ~98% de précision — non vérifié ; 🟡 "1000+ intégrations de données temps réel" — non vérifié | Aucune donnée confirmée | 🟡 Rapporté (1000+ intégrations), non vérifié | Aucune donnée | ⚪ Wonderplan : angle mort complet. GuideGeek : sourcé Wikipedia uniquement |
+
+Sources principales : `investors.sabre.com`, `skift.com`, `pymnts.com`, `hoteldive.com`, `medium.com/expedia-group-tech`, `techcrunch.com` (2024-05-14, 2025-10-16), `medium.com/tripadvisor`, `qdrant.tech/blog/case-study-tripadvisor`, `en.wikipedia.org/wiki/GuideGeek`, `kayak.com/news/ask-ai`, `zenml.io/llmops-database`.
+
+### Phase 2 — Synthèse comparative
+
+**Patterns récurrents (best practices confirmées ou fortement indiquées) :**
+
+1. **Hybridation données propriétaires + LLM générique** — aucun acteur ne laisse le LLM répondre "à nu" sur des faits critiques (prix, dispo). Kayak, TripAdvisor, Mindtrip injectent systématiquement leur inventaire/API dans le flux conversationnel.
+2. **Le paiement/transaction reste dans la conversation** (Mindtrip : zéro redirection) — tendance "agentic commerce" vers la suppression du switch chat→checkout.
+3. **Personnalisation par mémoire longitudinale multi-canal** (Romie lit emails/SMS ; TripAdvisor construit un "user graph" vectoriel) plutôt qu'un simple formulaire de préférences.
+4. **RAG/vector DB sur données propriétaires plutôt que fine-tuning du LLM lui-même** (piste TripAdvisor/Qdrant) — le fine-tuning complet est rare et coûteux ; enrichir le contexte est le pattern dominant.
+5. **Multi-canal comme différenciateur produit** (WhatsApp, iMessage, SMS group chat) — Romie, GuideGeek misent sur "aller où est l'utilisateur" plutôt que sur une app dédiée.
+
+**Angles morts / faiblesses exploitables pour ZenifyTrip :**
+
+| Angle mort constaté chez la concurrence | Opportunité pour ZenifyTrip |
+|---|---|
+| Zéro transparence sur l'orchestration multi-agents — personne ne documente une architecture superviseur/agents spécialisés | Argument de robustesse académique et commercial : pipeline LangGraph documenté, traçable, scoring explicite (70/30) |
+| Aucune mention publique de logique commerciale explicite (priorité offres internes vs externes) | ZenifyTrip a un `business_score` explicite et configurable (`USER_SCORE_WEIGHT`/`BUSINESS_SCORE_WEIGHT`) — auditable, ajustable sans redéploiement |
+| Personnalisation présentée comme "mémoire" mais rarement comme scoring dynamique intra-session | Scoring de préférences ajustable **en direct pendant la conversation**, pas seulement d'une session à l'autre |
+| Aucune détection d'intention implicite/émotionnelle documentée (urgence, budget serré, stress) | Différenciateur net — aucun des 9 acteurs ne communique là-dessus |
+| Grounding anti-hallucination peu documenté au-delà de "on utilise nos propres données" | Guardrail agent explicite avec règles vérifiables (jamais de prix/dispo non confirmés par API interne) |
+| Latence non traitée comme sujet produit (aucune mention de cache sémantique/fallback multi-LLM) | Avantage naturel avec Groq (inférence rapide) + cache sémantique déjà en place (`cache_service.py`) |
+| Explicabilité quasi absente (pourquoi CE restaurant précisément) | Champ libre pour un agent Explicabilité dédié |
+
+**Conclusion :** le marché a normalisé "chat + inventaire propriétaire + paiement in-chat", mais personne ne communique sur une architecture multi-agents rigoureuse avec logique commerciale transparente, scoring configurable et guardrails formalisés — c'est le terrain de différenciation pour ZenifyTrip (voir section **new architecture version5 by claude code** ci-dessous).
+
+---
+
+## new architecture version5 by claude code
+
+> Proposition d'architecture concurrentielle (Phase 3), construite le 2026-07-03 sur la base du benchmark ci-dessus et de la topologie existante VERSION 5 (`app/graph/builder.py`). Principe directeur : ne pas repartir de zéro — ajouter des agents transverses manquants (mémoire, guardrails, scoring dynamique, explicabilité) sans casser le pipeline 19 nodes déjà validé.
+
+### Diagramme d'architecture proposé
+
+```mermaid
+flowchart TD
+    START --> greeting[greeting]
+    START --> bootstrap[session_bootstrap]
+    greeting --> intent[intent_classifier - Groq llama-3.3-70b]
+    bootstrap --> profile[profile_loader]
+    intent --> merge[context_merger]
+    profile --> merge
+    merge --> avail[availability_checker]
+    avail --> clarif[clarification_checker]
+    clarif -->|ask_clarification| final1[final_response - Groq llama-3.1-8b]
+    clarif -->|continue| emotion[NOUVEAU: emotion_intent_agent - Groq llama-3.1-8b]
+    emotion --> weather[weather_node]
+    weather --> semantic[semantic_node]
+    semantic --> orchestrator[orchestrator - Groq llama-3.3-70b]
+    orchestrator --> hotel[hotel_node]
+    orchestrator --> flight[flight_node]
+    orchestrator --> resto[restaurant_node]
+    orchestrator --> activity[activity_node]
+    hotel --> guard[NOUVEAU: guardrail_agent]
+    flight --> guard
+    resto --> guard
+    activity --> guard
+    guard --> merger[data_merger]
+    merger --> validator[constraint_validator]
+    validator --> dynscore[NOUVEAU: dynamic_scoring_agent]
+    dynscore --> ranking[ranking_node - Groq llama-3.3-70b]
+    ranking --> dayplan[day_planner_node - Groq llama-3.3-70b]
+    dayplan --> explain[NOUVEAU: explainability_agent - Groq llama-3.1-8b]
+    explain --> response[recommendation_response - Groq llama-3.3-70b]
+    response --> feedback[NOUVEAU: realtime_feedback_agent]
+    feedback --> memlong[NOUVEAU: long_term_memory_writer]
+    memlong --> END
+```
+
+### Table des agents (existants + nouveaux)
+
+| Agent | Rôle | Input | Output | LLM Groq recommandé | Justification |
+|---|---|---|---|---|---|
+| `intent_classifier` *(existant)* | Classification intention + extraction contraintes | message brut | `intent_result` | **llama-3.3-70b-versatile** | Raisonnement structuré JSON strict, ambiguïtés FR/EN/AR → modèle le plus capable |
+| `orchestrator` *(existant)* | Décide quels agents domaine activer | `merged_context`, `semantic_tags` | `requested_services` | **llama-3.3-70b-versatile** | Décision de routage à fort impact |
+| `ranking_node` *(existant, Python pur)* | Score 70/30 | candidats | `ranked_results` | Aucun LLM — Python déterministe | Latence + déterminisme, pas de valeur ajoutée LLM |
+| **NOUVEAU `emotion_intent_agent`** | Détecte urgence/stress/budget serré/ton | `normalized_message` | `emotional_signals: {urgency, budget_pressure, tone}` | **llama-3.1-8b-instant** | Classification légère, haute fréquence, faible latence requise |
+| **NOUVEAU `guardrail_agent`** | Valide que chaque candidat provient d'une source vérifiée (API interne/Google Places) avant le ranking ; bloque tout champ prix/dispo non sourcé | candidats bruts des 4 domain nodes | candidats filtrés + `guardrail_flags` | **Rule-based Python, pas de LLM** | Un guardrail anti-hallucination ne doit jamais dépendre d'un LLM sous peine d'hériter du même risque |
+| **NOUVEAU `dynamic_scoring_agent`** | Ajuste les poids user/business en cours de session selon feedback implicite | historique session + `ranked_results` précédents | `session_weight_adjustments` | **llama-3.1-8b-instant** | Calcul léger, appelé fréquemment |
+| **NOUVEAU `explainability_agent`** | Génère une justification courte par recommandation | `ranked_results` top 3-4 | `recommendation_reasons[]` | **llama-3.1-8b-instant** (ou fusionné dans `recommendation_response`) | Texte court, faible complexité — fusion possible pour réduire la latence totale |
+| **NOUVEAU `realtime_feedback_agent`** | Détecte réaction implicite ("non pas celui-là", "trop cher") au tour suivant | tour de conversation suivant | `feedback_signal` | **llama-3.1-8b-instant** | Classification légère |
+| **NOUVEAU `long_term_memory_writer`** | Persiste les préférences apprises cross-session (enrichit `profile_writer_node` déjà en TODO Phase 5) | `feedback_signal`, `session_weight_adjustments` | mise à jour `profile_data` | Aucun LLM — écriture structurée | Cohérent avec Phase 5 déjà planifiée |
+
+> Répartition Groq : `emotion_intent_agent`, `dynamic_scoring_agent`, `explainability_agent`, `realtime_feedback_agent` → **llama-3.1-8b-instant** plutôt qu'Ollama `gpt-oss:120b`, car ce sont des tâches de classification/génération courte à très haute fréquence d'appel où la latence Groq et le coût réduit priment sur la puissance de raisonnement.
+
+### Couches d'intelligence différenciantes — priorisées
+
+| Couche | Description concrète | Effort | Différenciation vs concurrence |
+|---|---|---|---|
+| Guardrail anti-hallucination formalisé | Rule-based, bloque tout candidat sans `source` traçable | Faible | Aucun concurrent ne documente ce niveau de rigueur |
+| Scoring 70/30 configurable + dynamique intra-session | Déjà en place (statique) → ajout ajustement dynamique | Moyen | Personne dans le benchmark ne mentionne un ajustement live des poids |
+| Détection émotionnelle/urgence | Nouveau agent léger | Faible | Angle mort total chez les 9 concurrents étudiés |
+| Explicabilité par recommandation | Formaliser `recommendation_reason` en champ obligatoire ou agent dédié | Faible | Peu documenté ailleurs |
+| Cache sémantique + fallback multi-LLM | Cache déjà en place (`cache_service.py`) — ajouter fallback Groq→Ollama si modèle indisponible/lent | Moyen | Robustesse structurelle rarement évoquée publiquement par la concurrence |
+| Persona de voyage (famille/solo/business/aventure) | Dérivable de `profile_data.tags` + `travellerTags` déjà existants — champ `travel_persona` calculé dans `context_merger` | Faible | Renforce le ciblage business_score |
+| LLM-as-judge pour évaluation continue | Agent offline notant un échantillon de `final_answer`/`recommendation_response` | Moyen-élevé | Argument académique fort pour le rapport PFE |
+
+### Roadmap d'implémentation
+
+**MVP** (complète le TODO existant + guardrails de base)
+1. Finir `day_planner_node` (déjà identifié comme prioritaire dans le pipeline VERSION 4/5)
+2. Implémenter `guardrail_agent` (rule-based) juste après le fan-in `data_merger` — plus haut ROI/effort, aucune dépendance externe
+3. Formaliser `recommendation_reason` comme champ obligatoire dans `ranking_node` ou `recommendation_response_node`
+
+**v2** (différenciation comportementale)
+4. `emotion_intent_agent` (Groq llama-3.1-8b-instant), injecté dans `merged_context`
+5. `dynamic_scoring_agent` — ajustement live des poids intra-session (état de session léger, ex. Redis — `app/config/redis_config.py` déjà présent dans le repo)
+6. `travel_persona` calculé — enrichissement de `context_merger_node`
+
+**v3** (boucle d'apprentissage complète)
+7. `realtime_feedback_agent` + `long_term_memory_writer` — boucle complète Phase 5 (déjà planifiée : `feedback_logger_node`, `profile_writer_node`)
+8. Cache sémantique + fallback multi-LLM (Groq→Ollama) pour robustesse
+9. LLM-as-judge en évaluation offline/batch (hors chemin critique temps réel)
+10. *(Optionnel, selon volume de données)* Collaborative filtering — déjà en placeholder (`cf_scorer.py`), à activer si volume utilisateur suffisant
+
+### Recommandations stack technique
+
+- **LangGraph** : garder le pattern fan-out/fan-in validé ; respecter la règle critique déjà découverte (nodes convergents à la même profondeur, sinon double exécution — cf. bug `availability_checker` déjà corrigé en VERSION 3)
+- **Groq models par type de tâche** : raisonnement complexe/JSON structuré à fort enjeu (intent, orchestrator, ranking, day_planner) → `llama-3.3-70b-versatile` ; classification légère haute fréquence (emotion, scoring dynamique, feedback, explicabilité) → `llama-3.1-8b-instant`
+- **Guardrails** : rule-based Python, jamais un LLM — cohérent avec la doctrine projet ("Node technique" sans LLM pour tout ce qui est déterministe)
+- **Vector store** : pas nécessaire dans l'immédiat vu le dataset actuel (pattern matching suffisant, `pgvector` déjà anticipé dans la section "Évolutions Futures" si le volume grandit)
+- **Cache/mémoire de session** : `app/config/redis_config.py` déjà en cours — composant adapté pour stocker l'état `dynamic_scoring_agent` (poids ajustés par session) sans persistance immédiate en base
+
+**Limite à assumer si ce document alimente le rapport PFE** : ce benchmark ne documente solidement que 2 des 9 concurrents demandés (Expedia/Romie, Mindtrip). Pour les 5 acteurs sans données (Booking.com, Google Travel/Gemini, Layla AI, Wonderplan, Hopper), l'absence de source publique exploitable est elle-même une observation valide (opacité du marché sur l'orchestration IA), mais une passe de recherche complémentaire ciblée sera nécessaire avant de les citer avec assurance dans un livrable académique.

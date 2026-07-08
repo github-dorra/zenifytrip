@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "google": "^2.1.0",
     "ollama": "^0.6.3"
   }
 }
