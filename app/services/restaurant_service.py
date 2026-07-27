@@ -227,6 +227,7 @@ class RestaurantService(RestaurantServiceA):
             ref_lat=ref_lat,
             ref_lng=ref_lng,
             max_results=max_candidates,
+            establishment_types=search_strategy.get("establishment_types"),
         )
         benchmark["mongo_results"] = len(mongo_results)
 

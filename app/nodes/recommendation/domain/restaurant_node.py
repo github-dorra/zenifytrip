@@ -11,6 +11,7 @@ Correction architecturale (2026-06-08) :
   par l'intention utilisateur, non par le type d'utilisateur (hotel_id).
 """
 
+from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
 from app.nodes.core.Base_node import BaseNode, NodeConfig
@@ -24,6 +25,14 @@ PROXIMITY_KEYWORDS = {"nearbyRestaurant", "walkingDistance", "hotelRestaurant", 
 
 class RestaurantNode(BaseNode):
 
+    # Créneau -> establishment_types (filtre dur Atlas Search, cf. mongo_restaurant_service.py)
+    _SLOT_TO_TYPES = {
+        "matin": ["cafe", "dessert"],
+        "midi":  ["restaurant", "fast_food", "pizzeria"],
+        "soir":  ["restaurant", "bar", "fast_food", "pizzeria"],
+        "snack": ["fast_food", "dessert"],
+    }
+
     def __init__(self):
         super().__init__(
             NodeConfig(
@@ -31,6 +40,42 @@ class RestaurantNode(BaseNode):
                 node_type="technical",
             )
         )
+
+    # ── CRÉNEAU HORAIRE ──────────────────────────────────────────────
+
+    @staticmethod
+    def _current_time_slot() -> str:
+        """Créneau depuis l'heure serveur actuelle — 4 tranches horaires."""
+        h = datetime.now().hour
+        if 6 <= h < 11:  return "matin"
+        if 11 <= h < 15: return "midi"
+        if 15 <= h < 18: return "snack"
+        return "soir"
+
+    def _resolve_establishment_types(self, state: Dict[str, Any]) -> Optional[List[str]]:
+        """
+        Priorité : préférence explicite du voyageur > day_skeleton (plan
+        multi-créneaux, pool complet nécessaire en aval) > heure courante
+        (seulement si une date de séjour est fournie).
+        """
+        constraints  = (state.get("intent_result") or {}).get("constraints") or {}
+        day_skeleton = state.get("day_skeleton")
+
+        if constraints.get("restaurant_preferences"):
+            # Désir déjà exprimé (ex. "vue mer", "halal") — ne pas imposer
+            # un filtre horaire qui pourrait entrer en conflit.
+            return None
+
+        if day_skeleton:
+            # Demande multi-créneaux (day_planning) — le pool complet doit
+            # rester disponible pour la sélection slot-driven en aval.
+            return None
+
+        if constraints.get("start_date"):
+            time_slot = self._current_time_slot()
+            return self._SLOT_TO_TYPES.get(time_slot)
+
+        return None
 
     # ── STRATEGY BUILDER ─────────────────────────────────────────────
 
@@ -52,36 +97,40 @@ class RestaurantNode(BaseNode):
         hotel_id    = (profile_data.get("travel_preferences") or {}).get("hotel_id")
 
         wants_proximity = bool(set(global_keywords) & PROXIMITY_KEYWORDS)
+        establishment_types = self._resolve_establishment_types(state)
 
         # Cas 1 — proximity explicitement demandée + hotel connu
         if wants_proximity and hotel_id:
             coords = RestaurantService.get_hotel_coords(hotel_id)
             if coords:
                 return {
-                    "mode":              "nearby",
-                    "target_query":      None,
-                    "reference_coords":  coords,
-                    "radius_km":         2.0,
-                    "require_diversity": False,
+                    "mode":                "nearby",
+                    "target_query":        None,
+                    "reference_coords":    coords,
+                    "radius_km":           2.0,
+                    "require_diversity":   False,
+                    "establishment_types": establishment_types,
                 }
 
         # Cas 2 — destination explicite → découverte, variété
         if destination:
             return {
-                "mode":              "destination",
-                "target_query":      None,
-                "reference_coords":  None,
-                "radius_km":         None,
-                "require_diversity": True,
+                "mode":                "destination",
+                "target_query":        None,
+                "reference_coords":    None,
+                "radius_km":           None,
+                "require_diversity":   True,
+                "establishment_types": establishment_types,
             }
 
         # Cas 3 — exploratoire (pas de destination, pas de proximité)
         return {
-            "mode":              "exploratory",
-            "target_query":      None,
-            "reference_coords":  None,
-            "radius_km":         None,
-            "require_diversity": True,
+            "mode":                "exploratory",
+            "target_query":        None,
+            "reference_coords":    None,
+            "radius_km":           None,
+            "require_diversity":   True,
+            "establishment_types": establishment_types,
         }
 
     # ── RUN ──────────────────────────────────────────────────────────
