@@ -14,6 +14,23 @@ PLACES_API_BASE = "https://maps.googleapis.com/maps/api"
 
 logger = logging.getLogger(__name__)
 
+# Statuts Google Places API acceptables — tout le reste (REQUEST_DENIED,
+# OVER_QUERY_LIMIT, INVALID_REQUEST...) doit etre logge, jamais traite en
+# silence comme une simple liste vide (bug historique corrige ici).
+_OK_STATUSES = {"OK", "ZERO_RESULTS"}
+
+
+def _check_places_status(payload: Dict, context: str) -> bool:
+    """True si le statut est exploitable. Logge une ERROR sinon (jamais silencieux)."""
+    status = payload.get("status")
+    if status not in _OK_STATUSES:
+        logger.error(
+            f"Google Places API [{context}] status={status} — "
+            f"{payload.get('error_message', 'no error_message')}"
+        )
+        return False
+    return True
+
 
 class RestaurantServiceA:
 
@@ -225,7 +242,10 @@ class RestaurantServiceA:
             }
             resp = requests.get(url, params=params, timeout=RestaurantServiceA.TIMEOUT)
             resp.raise_for_status()
-            raw_results = resp.json().get("results", [])[:max_results]
+            payload = resp.json()
+            if not _check_places_status(payload, "search_nearby"):
+                return [], 1
+            raw_results = payload.get("results", [])[:max_results]
 
             parsed = [
                 RestaurantServiceA._parse_place(p, lat, lng, "nearby")
@@ -263,7 +283,10 @@ class RestaurantServiceA:
             }
             resp = requests.get(url, params=params, timeout=RestaurantServiceA.TIMEOUT)
             resp.raise_for_status()
-            raw_results = resp.json().get("results", [])[:max_results]
+            payload = resp.json()
+            if not _check_places_status(payload, "search_by_text"):
+                return [], 1
+            raw_results = payload.get("results", [])[:max_results]
 
             parsed = [
                 RestaurantServiceA._parse_place(p, None, None, "text_search")
@@ -380,7 +403,10 @@ class RestaurantServiceA:
             }
             resp = requests.get(url, params=params, timeout=RestaurantServiceA.TIMEOUT)
             resp.raise_for_status()
-            result = resp.json().get("result") or {}
+            payload = resp.json()
+            if not _check_places_status(payload, "get_place_details"):
+                return None
+            result = payload.get("result") or {}
             if result:
                 cache.set(cache_key, result, SimpleTTLCache.TTL_RESTAURANTS)
             return result

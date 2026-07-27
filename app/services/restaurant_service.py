@@ -12,13 +12,14 @@ Décision architecturale (2026-06-08) :
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
+from app.config.settings import RESTAURANT_MONGO_MIN_RESULTS
 from app.services.restaurant_service_a import RestaurantServiceA
 from app.services.mongo_restaurant_service import MongoRestaurantService
 
 logger = logging.getLogger(__name__)
 
 # Seuil minimum de résultats MongoDB pour éviter le fallback Google Places
-MONGO_MIN_RESULTS = 3
+MONGO_MIN_RESULTS = RESTAURANT_MONGO_MIN_RESULTS
 
 
 class RestaurantService(RestaurantServiceA):

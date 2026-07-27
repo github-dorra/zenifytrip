@@ -5,7 +5,9 @@ Recherche dans restaurant_collection (données RestaurantGuru scrapées) par :
   1. city  — correspondance exacte (insensible à la casse)
   2. zone  — correspondance partielle sur le gouvernorat (ex: "Sousse" dans "Gouvernorat de Sousse")
 
-business_score = 0.6  (données propres, zéro coût API, source vérifiée)
+business_score = 0.6 par défaut (données propres, zéro coût API, source vérifiée) ;
+priorité à la valeur explicite du document si présente (ex. 0.20 pour les
+établissements enrichis via SerpApi/Google — cf. scrape_zone_serpapi.py).
 Fallback Google Places (RestaurantServiceA) si résultats < seuil.
 """
 
@@ -15,6 +17,9 @@ import re
 from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Défaut RestaurantGuru — écrasé par doc["business_score"] quand explicite (sources externes)
+BUSINESS_SCORE_DEFAULT = 0.6
 
 # "€" → 1, "€€" → 2, "€€€" → 3, "€€€€" → 4
 BUDGET_TO_PRICE_LEVEL: Dict[str, Tuple[int, int]] = {
@@ -100,6 +105,7 @@ class MongoRestaurantService:
             "photo_reference":    doc.get("photo_url"),
             "match_score":        0.0,
             "matched_criteria":   [],
+            "establishment_types": doc.get("establishment_types") or [],
             "tier":               "mongodb",
             "source":             source_label,
             "_city":              doc.get("city"),
@@ -273,11 +279,13 @@ class MongoRestaurantService:
                 for doc in docs
             ]
 
-            for c in candidates:
+            for c, doc in zip(candidates, docs):
                 sc, crit = MongoRestaurantService.score(c, keywords, budget_level, is_family)
                 c["match_score"]    = sc
                 c["matched_criteria"] = crit
-                c["business_score"] = 0.6
+                # Priorite au business_score explicite du doc (ex. 0.20 pour les
+                # etablissements enrichis via SerpApi/Google) — sinon defaut RestaurantGuru.
+                c["business_score"] = doc.get("business_score", BUSINESS_SCORE_DEFAULT)
 
             candidates.sort(key=lambda x: x["match_score"], reverse=True)
             return candidates[:max_results]

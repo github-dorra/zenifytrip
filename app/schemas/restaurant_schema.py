@@ -18,8 +18,11 @@ class RestaurantCandidate(BaseModel):
     photo_reference: Optional[str] = None
     match_score: float = 0.0
     matched_criteria: List[str] = Field(default_factory=list)
+    establishment_types: List[str] = Field(default_factory=list)
     tier: str = "text_search"
     source: str = "google_places"
+    # Posé par la source (Mongo 0.6 / Google 0.20) — lu en priorité 1 par ranking_node
+    business_score: Optional[float] = None
     recommendation_reason: Optional[str] = None
     place_details: Optional[str] = None  # texte enrichi Place Details → passé au ranking_node LLM
 
@@ -61,7 +64,7 @@ class RestaurantCandidate(BaseModel):
         except (ValueError, TypeError):
             return None
 
-    @field_validator("cuisine_types", "matched_criteria", mode="before")
+    @field_validator("cuisine_types", "matched_criteria", "establishment_types", mode="before")
     @classmethod
     def ensure_list(cls, v):
         if v is None:
