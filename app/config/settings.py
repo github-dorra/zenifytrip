@@ -37,6 +37,13 @@ GOOGLE_MAPS_BASE_URL= os.getenv("GOOGLE_MAPS_BASE_URL")
 # --- Restaurant Approach C
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
+# --- Restaurant Tier 2 fallback
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
+# "serpapi" tant que la facturation Google Cloud n'est pas activee sur le
+# projet lie a GOOGLE_MAPS_API_KEY (REQUEST_DENIED confirme) — repasser sur
+# "google_places" ensuite via .env, sans toucher au code.
+RESTAURANT_TIER2_PROVIDER = os.getenv("RESTAURANT_TIER2_PROVIDER", "serpapi")
+
 # --- MongoDB Atlas
 MONGODB_URI = os.getenv("MONGODB_URI")
 MONGODB_DB  = os.getenv("MONGODB_DB", "zenifytrip")
