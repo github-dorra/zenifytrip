@@ -1,22 +1,29 @@
 """
 MongoRestaurantService — Tier 1 source pour les candidats restaurants.
 
-Recherche dans restaurant_collection (données RestaurantGuru scrapées) par :
-  1. city  — correspondance exacte (insensible à la casse)
-  2. zone  — correspondance partielle sur le gouvernorat (ex: "Sousse" dans "Gouvernorat de Sousse")
+Recherche dans restaurant_collection via MongoDB Atlas Search (index
+"restaurant_search" — cf. create_restaurant_search_index.py) :
+  - filtre dur   : city/zone (destination) + establishment_types (créneau, optionnel)
+  - pertinence   : categories (boost x3) + tags (boost x2) + description,
+                   sur les mots-clés sémantiques normalisés (stem_keyword)
+
+Remplace le filtrage par expressions régulières (migration 2026-07-23) —
+une seule requête au lieu de 2 passes stricte/relâchée, scoring de
+pertinence natif au lieu d'un match binaire.
 
 business_score = 0.6 par défaut (données propres, zéro coût API, source vérifiée) ;
 priorité à la valeur explicite du document si présente (ex. 0.20 pour les
-établissements enrichis via SerpApi/Google — cf. scrape_zone_serpapi.py).
-Fallback Google Places (RestaurantServiceA) si résultats < seuil.
+établissements enrichis via SerpApi/Google).
+Fallback Google Places/SerpApi (restaurant_service.py) si résultats < seuil.
 """
 
 import logging
 import math
-import re
 from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+SEARCH_INDEX_NAME = "restaurant_search"
 
 # Défaut RestaurantGuru — écrasé par doc["business_score"] quand explicite (sources externes)
 BUSINESS_SCORE_DEFAULT = 0.6
@@ -28,6 +35,18 @@ BUDGET_TO_PRICE_LEVEL: Dict[str, Tuple[int, int]] = {
     "luxury":  (3, 4),
     "premium": (3, 4),
 }
+
+# Suffixes composites du vocabulaire semantic_node (ex. "seafoodRestaurant" -> "seafood")
+# — un seul suffixe retire en fin de mot, jamais en cascade.
+_KEYWORD_SUFFIXES = ("restaurant", "dining", "food", "cuisine", "cafe", "eating")
+
+
+def stem_keyword(kw: str) -> str:
+    stem = str(kw).lower().strip()
+    for suffix in _KEYWORD_SUFFIXES:
+        if stem.endswith(suffix) and len(stem) > len(suffix):
+            return stem[: -len(suffix)].strip()
+    return stem
 
 
 class MongoRestaurantService:
@@ -113,110 +132,109 @@ class MongoRestaurantService:
             "_source_url":        source_url,
         }
 
-    # ── Filtres MongoDB ───────────────────────────────────────────────────
+    # ── Pipeline Atlas Search ───────────────────────────────────────────────
 
     @staticmethod
-    def _city_zone_filter(destination: str) -> Dict:
+    def _build_search_pipeline(
+        destination: str,
+        stems: List[str],
+        establishment_types: Optional[List[str]],
+        max_results: int,
+    ) -> List[Dict]:
         """
-        Construit un filtre MongoDB OR :
-          city  == destination (exact, insensible à la casse)
-          zone  contient destination (ex: "Sousse" dans "Gouvernorat de Sousse")
+        Couche 1 (filtre dur) : destination (city/zone) + establishment_types
+        si fourni (créneau horaire). Couche 2 (pertinence) : categories
+        (boost x3) + tags (boost x2) + description, sur les mots-clés déjà
+        stemmés. searchScore exposé via $meta pour normalisation en Python.
         """
-        escaped = re.escape(destination.strip())
-        return {
-            "$or": [
-                {"city": {"$regex": f"^{escaped}$",  "$options": "i"}},
-                {"zone": {"$regex": escaped,          "$options": "i"}},
-            ]
+        compound: Dict[str, Any] = {
+            "filter": [{"text": {"query": destination, "path": ["city", "zone"]}}],
+            "should": [],
         }
+        if establishment_types:
+            compound["filter"].append(
+                {"text": {"query": establishment_types, "path": "establishment_types"}}
+            )
+        if stems:
+            compound["should"] = [
+                {"text": {"query": stems, "path": "categories",
+                          "score": {"boost": {"value": 3}}}},
+                {"text": {"query": stems, "path": "tags",
+                          "score": {"boost": {"value": 2}}}},
+                {"text": {"query": stems, "path": "description"}},
+            ]
+
+        return [
+            {"$search": {"index": SEARCH_INDEX_NAME, "compound": compound}},
+            {"$limit": max_results * 3},
+            {"$addFields": {"search_relevance": {"$meta": "searchScore"}}},
+        ]
+
+    # ── Scoring — formule validée le 2026-07-24 ─────────────────────────────
+    #   score = search_relevance(35%) + rating_confiance(25%) + business_score(20%)
+    #         + zone_priority(10%) + budget_soft_match(10%)
+    # is_family conservé dans la signature pour compatibilité d'appel
+    # (restaurant_service.py) mais n'entre pas dans cette formule — pas de
+    # signal fiable pour la famille dans les champs actuels de la collection.
 
     @staticmethod
-    def _keyword_filter(keywords: List[str]) -> Optional[Dict]:
-        """
-        Filtre souple sur categories + tags + description.
-        Même logique de stemming que RestaurantServiceA.score().
-        """
-        stems = []
-        for kw in keywords:
-            stem = kw.lower()
-            for suffix in ("restaurant", "dining", "food", "cuisine", "cafe", "eating"):
-                stem = stem.replace(suffix, "")
-            stem = stem.strip()
-            if len(stem) >= 3:
-                stems.append(stem)
+    def _rating_confiance(rating: Optional[float], reviews: Optional[int]) -> float:
+        """Note pondérée par le volume d'avis. Absence de rating -> neutre (0.5), jamais 0."""
+        if rating is None:
+            return 0.5
+        normalized = max(0.0, min(1.0, (float(rating) - 1) / 4))
+        confidence = min(1.0, math.log((reviews or 0) + 1) / math.log(50)) if reviews else 0.5
+        return round(normalized * (0.5 + 0.5 * confidence), 4)
 
-        if not stems:
-            return None
+    @staticmethod
+    def _zone_priority(doc_city: Optional[str], destination: str) -> float:
+        """1.0 si match exact sur city, 0.6 si remonté via zone (gouvernorat) seulement."""
+        return 1.0 if (doc_city or "").strip().lower() == destination.strip().lower() else 0.6
 
-        or_clauses = []
-        for stem in stems:
-            escaped = re.escape(stem)
-            or_clauses.extend([
-                {"categories":  {"$regex": escaped, "$options": "i"}},  # RestaurantGuru
-                {"cuisines":    {"$regex": escaped, "$options": "i"}},  # TripAdvisor
-                {"tags":        {"$regex": escaped, "$options": "i"}},
-                {"description": {"$regex": escaped, "$options": "i"}},
-                {"features":    {"$regex": escaped, "$options": "i"}},
-            ])
-        return {"$or": or_clauses}
-
-    # ── Scoring ───────────────────────────────────────────────────────────
+    @staticmethod
+    def _budget_soft_match(price_level: Optional[int], budget_level: Optional[str]) -> float:
+        """Bonus souple — jamais un filtre dur ici (pas de double-comptage avec un futur filtre)."""
+        if price_level is None or not budget_level:
+            return 0.5
+        lo, hi = BUDGET_TO_PRICE_LEVEL.get(budget_level, (0, 4))
+        return 1.0 if lo <= price_level <= hi else 0.3
 
     @staticmethod
     def score(
-        candidate: Dict,
-        keywords:     List[str],
-        budget_level: Optional[str],
-        is_family:    bool,
+        candidate:          Dict,
+        keywords:            List[str],
+        budget_level:        Optional[str],
+        is_family:           bool,
+        search_relevance_norm: float = 0.0,
+        destination:         str = "",
     ) -> Tuple[float, List[str]]:
-        """Score 0 → 1 : rating (35%) + budget (20%) + keyword (30%) + famille (15%)."""
-        s        = 0.0
         criteria = []
 
-        # Rating (max 0.35)
-        rating = candidate.get("rating") or 0.0
-        if rating >= 4.5:
-            s += 0.35; criteria.append("rating_excellent")
-        elif rating >= 4.0:
-            s += 0.25; criteria.append("rating_good")
-        elif rating >= 3.5:
-            s += 0.15; criteria.append("rating_ok")
+        rel = search_relevance_norm
+        if rel > 0.5:
+            criteria.append("high_relevance")
 
-        # Budget → price_level (0.20)
-        price_level = candidate.get("price_level")
-        if price_level is not None and budget_level:
-            lo, hi = BUDGET_TO_PRICE_LEVEL.get(budget_level, (0, 4))
-            if lo <= price_level <= hi:
-                s += 0.20; criteria.append("budget_match")
+        rating_c = MongoRestaurantService._rating_confiance(
+            candidate.get("rating"), candidate.get("user_ratings_total")
+        )
+        if rating_c > 0.7:
+            criteria.append("rating_good")
 
-        # Keyword match (max 0.30)
-        if keywords:
-            searchable = " ".join(filter(None, [
-                (candidate.get("name")        or "").lower(),
-                (candidate.get("description") or "").lower(),
-                " ".join(candidate.get("cuisine_types") or []).lower(),
-            ]))
-            matched = []
-            for kw in keywords:
-                stem = kw.lower()
-                for suffix in ("restaurant", "dining", "food", "cuisine", "cafe", "eating"):
-                    stem = stem.replace(suffix, "")
-                stem = stem.strip()
-                if len(stem) >= 3 and stem in searchable:
-                    matched.append(kw)
-            if matched:
-                ratio = len(matched) / len(keywords)
-                s += round(min(0.30, ratio * 0.30), 4)
-                criteria.append("keyword_match")
+        biz = candidate.get("business_score")
+        if biz is None:
+            biz = BUSINESS_SCORE_DEFAULT
 
-        # Famille (0.15)
-        if is_family:
-            tags_str = " ".join(
-                (candidate.get("cuisine_types") or [])
-            ).lower()
-            if any(w in tags_str for w in ("famille", "family", "enfant", "child")):
-                s += 0.15; criteria.append("family_match")
+        zone_p = MongoRestaurantService._zone_priority(candidate.get("_city"), destination)
+        if zone_p == 1.0:
+            criteria.append("exact_city")
 
+        budget_s = MongoRestaurantService._budget_soft_match(
+            candidate.get("price_level"), budget_level
+        )
+        if budget_s == 1.0:
+            criteria.append("budget_match")
+
+        s = (rel * 0.35) + (rating_c * 0.25) + (biz * 0.20) + (zone_p * 0.10) + (budget_s * 0.10)
         return round(min(s, 1.0), 4), criteria
 
     # ── Point d'entrée principal ──────────────────────────────────────────
@@ -230,16 +248,14 @@ class MongoRestaurantService:
         ref_lat:      Optional[float] = None,
         ref_lng:      Optional[float] = None,
         max_results:  int = 15,
+        establishment_types: Optional[List[str]] = None,
     ) -> List[Dict]:
         """
-        Recherche restaurants dans MongoDB par city + zone + destination.
-
-        Stratégie :
-          1. Filtre strict  : city/zone + keywords → si >= 3 résultats → retourne
-          2. Filtre relâché : city/zone uniquement (ignore keywords)
-          3. Tri par match_score DESC
-
-        Retourne une liste de dicts compatibles RestaurantCandidate.
+        Recherche restaurants via Atlas Search (index "restaurant_search") :
+        filtre dur destination (+ establishment_types si fourni), pertinence
+        native sur categories/tags/description. Une seule requête — plus de
+        passe stricte/relâchée séparée : un doc sans match de mot-clé remonte
+        quand même via le filtre destination, juste moins bien classé.
         """
         if not destination:
             return []
@@ -248,30 +264,25 @@ class MongoRestaurantService:
             from app.config.mongodb import restaurant_collection
             col = restaurant_collection()
 
-            location_filter = MongoRestaurantService._city_zone_filter(destination)
-            kw_filter       = MongoRestaurantService._keyword_filter(keywords)
-
-            # ── Passe 1 : location + keywords ──────────────────────────────
-            if kw_filter:
-                query  = {"$and": [location_filter, kw_filter]}
-                docs   = list(col.find(query).sort("rating", -1).limit(max_results * 3))
-                source = "strict"
-            else:
-                docs   = []
-                source = "relaxed"
-
-            # ── Passe 2 : location uniquement (relax) ──────────────────────
-            if len(docs) < 3:
-                docs   = list(col.find(location_filter).sort("rating", -1).limit(max_results * 3))
-                source = "relaxed"
+            stems = [s for s in (stem_keyword(k) for k in keywords) if len(s) >= 3]
+            pipeline = MongoRestaurantService._build_search_pipeline(
+                destination, stems, establishment_types, max_results
+            )
+            docs = list(col.aggregate(pipeline))
 
             logger.info(
                 f"MongoRestaurantService: destination='{destination}' "
-                f"source={source} docs={len(docs)}"
+                f"establishment_types={establishment_types} docs={len(docs)}"
             )
 
             if not docs:
                 return []
+
+            # ── Normalisation min-max de search_relevance (searchScore Lucene
+            # non borné 0-1) sur le lot retourné ──────────────────────────
+            raw_scores = [d.get("search_relevance", 0.0) for d in docs]
+            lo_s, hi_s = min(raw_scores), max(raw_scores)
+            spread = hi_s - lo_s
 
             # ── Conversion + scoring ────────────────────────────────────────
             candidates = [
@@ -280,12 +291,19 @@ class MongoRestaurantService:
             ]
 
             for c, doc in zip(candidates, docs):
-                sc, crit = MongoRestaurantService.score(c, keywords, budget_level, is_family)
-                c["match_score"]    = sc
-                c["matched_criteria"] = crit
+                raw_rel = doc.get("search_relevance", 0.0)
+                rel_norm = (raw_rel - lo_s) / spread if spread > 0 else 1.0
+
                 # Priorite au business_score explicite du doc (ex. 0.20 pour les
                 # etablissements enrichis via SerpApi/Google) — sinon defaut RestaurantGuru.
                 c["business_score"] = doc.get("business_score", BUSINESS_SCORE_DEFAULT)
+
+                sc, crit = MongoRestaurantService.score(
+                    c, keywords, budget_level, is_family,
+                    search_relevance_norm=rel_norm, destination=destination,
+                )
+                c["match_score"]    = sc
+                c["matched_criteria"] = crit
 
             candidates.sort(key=lambda x: x["match_score"], reverse=True)
             return candidates[:max_results]
