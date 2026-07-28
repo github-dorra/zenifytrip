@@ -82,6 +82,32 @@ class RecommendationResponseNode(BaseNode):
         return 0.0
 
     @staticmethod
+    def _budget_cap(budget_level: str) -> float:
+        """Prix max acceptable (DT) pour ce niveau de budget."""
+        return {"low": 30.0, "medium": 80.0}.get(str(budget_level).lower(), float("inf"))
+
+    def _sort_by_budget(self, candidates: List[Dict], budget_level: str) -> List[Dict]:
+        """
+        Réordonne : candidats dans le budget d'abord, hors-budget en dernier.
+        Ne filtre PAS — ne supprime rien — réordonne seulement.
+        Inconnu (adult_price=None ou 0) → considéré comme dans le budget.
+        """
+        cap = self._budget_cap(budget_level)
+        if cap == float("inf"):
+            return candidates
+
+        def over_budget(c: Dict) -> bool:
+            price = c.get("adult_price")
+            if price is None:
+                return False
+            try:
+                return float(price) > cap
+            except (TypeError, ValueError):
+                return False
+
+        return sorted(candidates, key=lambda c: (over_budget(c), -self._final_score(c)))
+
+    @staticmethod
     def _zone_key(c: Dict[str, Any]):
         """Clé de diversité (domain, zone) — None si zone inconnue (jamais bloquant)."""
         zone = c.get("zone") or c.get("neighborhood") or c.get("hotel_zone")
@@ -360,6 +386,16 @@ class RecommendationResponseNode(BaseNode):
         language        = intent_result.get("language") or "fr"
 
         candidates = self._select_candidates(state)
+
+        # Tri budget-aware : candidats dans le budget d'abord, hors-budget en dernier
+        budget_level = (
+            merged_context.get("budget_level")
+            or (intent_result.get("constraints") or {}).get("budget_level")
+            or ""
+        )
+        if budget_level:
+            candidates = self._sort_by_budget(candidates, budget_level)
+
         itinerary  = state.get("itinerary")
 
         self.logger.info(

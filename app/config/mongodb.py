@@ -51,12 +51,39 @@ def ensure_indexes():
     # activities : unicité (name, destination_id) + recherche par tags/rating
     act = activities_collection()
     act.create_indexes([
+        # Unicité
         IndexModel([("name", ASCENDING), ("destination_id", ASCENDING)], unique=True),
+        # Champs simples (compatibilité existante)
         IndexModel([("destination_id", ASCENDING)]),
         IndexModel([("tags", ASCENDING)]),
         IndexModel([("rating", ASCENDING)]),
         IndexModel([("traveler_types", ASCENDING)]),
         IndexModel([("price_from_eur", ASCENDING)]),
+        # Compound — requête principale avec tri
+        IndexModel(
+            [("destination_id", ASCENDING), ("type", ASCENDING), ("rating", ASCENDING)],
+            name="idx_dest_type_rating",
+        ),
+        # Compound — filtre météo indoor/outdoor
+        IndexModel(
+            [("destination_id", ASCENDING), ("type", ASCENDING), ("indoor", ASCENDING)],
+            name="idx_dest_type_indoor",
+        ),
+        # Compound — filtre audience (famille/couple/solo)
+        IndexModel(
+            [("destination_id", ASCENDING), ("type", ASCENDING), ("audience", ASCENDING)],
+            name="idx_dest_type_audience",
+        ),
+        # Compound — filtre activity_type
+        IndexModel(
+            [("destination_id", ASCENDING), ("type", ASCENDING), ("activity_type", ASCENDING), ("rating", ASCENDING)],
+            name="idx_dest_type_acttype_rating",
+        ),
+        # Day-trips depuis une ville voisine
+        IndexModel(
+            [("nearby", ASCENDING), ("type", ASCENDING), ("rating", ASCENDING)],
+            name="idx_nearby_type_rating",
+        ),
     ])
 
     # restaurants (RestaurantGuru) : unicité (name, city) + recherche par city/zone/rating

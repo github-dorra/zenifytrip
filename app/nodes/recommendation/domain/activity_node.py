@@ -41,44 +41,44 @@ class ActivityNode(BaseNode):
     @staticmethod
     def _extract_params(state: Dict[str, Any]) -> Dict[str, Any]:
         """Extrait les paramètres nécessaires depuis GraphState."""
-        merged   = state.get("merged_context") or {}
-        intent   = state.get("intent_result")  or {}
-        constraints = intent.get("constraints") or {}
+        merged      = state.get("merged_context") or {}
+        intent      = state.get("intent_result")  or {}
+        constraints = intent.get("constraints")   or {}
 
-        destination   = (
-            merged.get("destination")
-            or constraints.get("destination")
-            or ""
-        )
-        start_date    = (
-            merged.get("start_date")
-            or constraints.get("start_date")
-        )
-        budget_level  = (
-            merged.get("budget_level")
-            or constraints.get("budget_level")
-        )
+        destination  = merged.get("destination") or constraints.get("destination") or ""
+        start_date   = merged.get("start_date")  or constraints.get("start_date")
+        budget_level = merged.get("budget_level") or constraints.get("budget_level")
 
-        # Profil voyageur
-        profile       = state.get("profile_data") or {}
-        traveller_id  = state.get("travellerId") or profile.get("id") or ""
+        profile      = state.get("profile_data") or {}
+        traveller_id = state.get("travellerId")  or profile.get("id") or ""
 
         traveler_type = ActivityNode._infer_traveler_type(profile)
 
-        # Keywords sémantiques enrichis par semantic_node
-        global_keywords = (
-            state.get("global_keywords") or
-            merged.get("global_keywords") or
-            []
+        # Keywords : global (semantic_node) + contextuel (semantic_node) fusionnés sans doublon
+        global_keywords     = state.get("global_keywords")     or merged.get("global_keywords") or []
+        contextual_keywords = state.get("contextual_keywords") or []
+        all_keywords = list(dict.fromkeys(global_keywords + contextual_keywords))
+
+        # Signaux météo — produits par weather_node, lus ici, jamais recalculés
+        insights      = (state.get("weather_context") or {}).get("insights") or {}
+        indoor_score  = insights.get("indoor_score")
+        outdoor_score = insights.get("outdoor_score")
+        indoor_preference = (
+            (indoor_score > outdoor_score)
+            if indoor_score is not None and outdoor_score is not None
+            else None
         )
+        beach_score = float(insights.get("beach_score") or 0)
 
         return {
-            "traveller_id":    str(traveller_id) if traveller_id else "",
-            "destination":     destination,
-            "global_keywords": global_keywords,
-            "budget_level":    budget_level,
-            "traveler_type":   traveler_type,
-            "start_date":      start_date,
+            "traveller_id":      str(traveller_id) if traveller_id else "",
+            "destination":       destination,
+            "all_keywords":      all_keywords,
+            "budget_level":      budget_level,
+            "traveler_type":     traveler_type,
+            "start_date":        start_date,
+            "indoor_preference": indoor_preference,
+            "beach_score":       beach_score,
         }
 
     @staticmethod
@@ -159,16 +159,19 @@ class ActivityNode(BaseNode):
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
         params = self._extract_params(state)
 
-        destination   = params["destination"]
-        traveller_id  = params["traveller_id"]
-        global_kws    = params["global_keywords"]
-        budget        = params["budget_level"]
-        traveler_type = params["traveler_type"]
-        start_date    = params["start_date"]
+        destination       = params["destination"]
+        traveller_id      = params["traveller_id"]
+        all_kws           = params["all_keywords"]
+        budget            = params["budget_level"]
+        traveler_type     = params["traveler_type"]
+        start_date        = params["start_date"]
+        indoor_preference = params["indoor_preference"]
+        beach_score       = params["beach_score"]
 
         self.logger.info(
             f"[ActivityNode] destination={destination!r} | "
-            f"keywords={global_kws} | budget={budget} | traveler_type={traveler_type}"
+            f"keywords={all_kws} | indoor={indoor_preference} | beach={beach_score:.2f} | "
+            f"budget={budget} | traveler_type={traveler_type}"
         )
 
         source1_result: List[Dict[str, Any]] = []
@@ -179,7 +182,7 @@ class ActivityNode(BaseNode):
             return InternalActivityService.get_candidates(
                 traveller_id=traveller_id,
                 destination=destination,
-                global_keywords=global_kws,
+                global_keywords=all_kws,
                 budget_level=budget,
                 traveler_type=traveler_type,
                 start_date=start_date,
@@ -189,10 +192,12 @@ class ActivityNode(BaseNode):
         def fetch_source2():
             return MongoActivityService.get_candidates(
                 destination=destination,
-                global_keywords=global_kws,
+                global_keywords=all_kws,
                 budget_level=budget,
                 traveler_type=traveler_type,
                 max_candidates=MAX_PER_SOURCE,
+                indoor_preference=indoor_preference,
+                beach_score=beach_score,
             )
 
         futures_map = {}

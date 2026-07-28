@@ -4,6 +4,7 @@ Base remplie par le scraper TripAdvisor/SerpAPI par ville tunisienne.
 business_score = 0.2 (enrichissement expérience, pas de commission directe)
 """
 import logging
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.activity_service.scoring import budget_proximity_score
@@ -43,6 +44,21 @@ TRAVELER_TYPE_MAP: Dict[str, str] = {
     "nature":   "solo",
 }
 
+# Mapping profil inféré → valeur champ "audience" MongoDB (enrichi en Phase 5)
+_TRAVELER_TO_AUDIENCE: Dict[str, str] = {
+    "family": "famille",
+    "couple": "couple",
+    "solo":   "solo",
+}
+
+# Mapping mois → saison (hémisphère nord, Tunisie)
+_MONTH_TO_SEASON: Dict[int, str] = {
+    1: "hiver",    2: "hiver",    3: "printemps",
+    4: "printemps", 5: "printemps", 6: "été",
+    7: "été",      8: "été",      9: "automne",
+    10: "automne", 11: "automne", 12: "hiver",
+}
+
 
 def _infer_activity_type(tags: List[str], category: str) -> str:
     """Macro-catégorie depuis les tags + catégorie TripAdvisor."""
@@ -58,13 +74,17 @@ def _compute_user_score(
     global_keywords: List[str],
     budget_level: Optional[str],
     traveler_type: Optional[str],
+    beach_score: float = 0.0,
 ) -> Tuple[float, List[str]]:
     """
     user_score 0.0→1.0 pour un document MongoDB
-      keyword match (tags + name)  0.35
-      rating                       0.25
-      budget (price_from_eur)      0.20
-      traveler_type match          0.20
+      keyword match (tags + name + description)  0.35
+      rating                                     0.25
+      budget (price_from_eur)                    0.20
+      traveler_type match                        0.20
+      [bonus] best_season match                 +0.05
+      [bonus] beach boost (si beach_score≥0.7)  +0.05
+    Clamped à 1.0 — les bonus poussent les bons candidats sans créer de faux positifs.
     """
     s: float = 0.0
     criteria: List[str] = []
@@ -100,7 +120,6 @@ def _compute_user_score(
         elif b > 0:
             criteria.append("budget_partial")
     elif price is None:
-        # activité gratuite → compatible tous budgets
         s += 0.10; criteria.append("free_activity")
 
     # Traveler type (0.20)
@@ -113,6 +132,18 @@ def _compute_user_score(
             for t in traveler_types_doc
         ):
             s += 0.10; criteria.append("traveler_type_partial")
+
+    # Bonus saisonnier (+0.05) — champ best_season enrichi en Phase 5
+    current_season = _MONTH_TO_SEASON[date.today().month]
+    seasons = doc.get("best_season") or []
+    if isinstance(seasons, str):
+        seasons = [seasons]
+    if current_season in seasons or "toute_année" in seasons:
+        s += 0.05; criteria.append("season_match")
+
+    # Bonus plage (+0.05) — boost si météo indique forte probabilité de plage
+    if beach_score >= 0.7 and (doc.get("activity_type") or "") == "nature":
+        s += 0.05; criteria.append("beach_boost")
 
     return round(min(s, 1.0), 4), criteria
 
@@ -141,10 +172,13 @@ def get_candidates(
     budget_level: Optional[str],
     traveler_type: Optional[str],
     max_candidates: int = 10,
+    indoor_preference: Optional[bool] = None,
+    beach_score: float = 0.0,
 ) -> List[Dict[str, Any]]:
     """
     Retourne les candidats SOURCE 2 depuis MongoDB Atlas.
-    Filtre par destination_id, score par keywords + rating + budget + traveler_type.
+    Couche 1 — filtres durs : destination_id + type + indoor (météo) + audience (profil).
+    Couche 2 — scoring : keywords + rating + budget + traveler_type + saison + plage.
     score = 0.7 * user_score + 0.3 * 0.2
     """
     if not destination:
@@ -160,17 +194,27 @@ def get_candidates(
 
     dest_id = destination.lower().strip()
 
-    # Filtre MongoDB : destination + type attraction/tour (pas restaurant)
+    # ── COUCHE 1 : filtres durs ───────────────────────────────────────
     mongo_filter: Dict[str, Any] = {
         "destination_id": dest_id,
-        "type":           {"$in": ["attraction", "tour"]},
+        "type":           {"$in": ["attraction", "tour", "activity"]},
     }
+
+    # Filtre météo : indoor/outdoor selon signaux weather_node
+    if indoor_preference is not None:
+        mongo_filter["indoor"] = indoor_preference
+
+    # Filtre audience : profil voyageur (souple — ne bloque pas si champ absent)
+    if traveler_type:
+        audience_val = _TRAVELER_TO_AUDIENCE.get(traveler_type)
+        if audience_val:
+            mongo_filter["audience"] = audience_val
 
     # Filtre optionnel par tags si keywords fournis
     if global_keywords:
         kw_lower = [kw.lower() for kw in global_keywords]
         mongo_filter["$or"] = [
-            {"tags":        {"$in": kw_lower}},
+            {"tags":           {"$in": kw_lower}},
             {"traveler_types": {"$in": kw_lower}},
         ]
 
@@ -182,10 +226,16 @@ def get_candidates(
         return []
 
     if not raw_docs:
-        # Fallback sans filtre keywords — toutes les activités de la destination
+        # Fallback : relâche keywords + audience, garde indoor si disponible
+        fallback_filter: Dict[str, Any] = {
+            "destination_id": dest_id,
+            "type": {"$in": ["attraction", "tour", "activity"]},
+        }
+        if indoor_preference is not None:
+            fallback_filter["indoor"] = indoor_preference
         try:
             cursor = (
-                col.find({"destination_id": dest_id, "type": {"$in": ["attraction", "tour"]}})
+                col.find(fallback_filter)
                 .sort("rating", -1)
                 .limit(max_candidates)
             )
@@ -197,13 +247,16 @@ def get_candidates(
     candidates: List[Dict[str, Any]] = []
 
     for doc in raw_docs:
-        tags          = doc.get("tags") or []
-        category      = doc.get("category") or ""
-        activity_type = _infer_activity_type(tags, category)
+        tags     = doc.get("tags") or []
+        category = doc.get("category") or ""
+
+        # ── COUCHE 2 : scoring ────────────────────────────────────────
+        # activity_type : champ stocké (enrichissement Phase 5) prioritaire sur recalcul
+        activity_type = doc.get("activity_type") or _infer_activity_type(tags, category)
         price_eur     = doc.get("price_from_eur")
 
         user_score, matched_criteria = _compute_user_score(
-            doc, global_keywords or [], budget_level, traveler_type
+            doc, global_keywords or [], budget_level, traveler_type, beach_score
         )
         score = round(0.7 * user_score + 0.3 * BUSINESS_SCORE, 4)
 
@@ -220,7 +273,7 @@ def get_candidates(
             "booking_reference":      "",
             "hotel_name":             None,
             "destination":            doc.get("destination") or destination,
-            "zone":                   doc.get("region"),
+            "zone":                   doc.get("region") or doc.get("zone"),
             "date":                   None,
             "recurrence_start":       None,
             "recurrence_end":         None,
@@ -229,13 +282,14 @@ def get_candidates(
             "child_price":            0.0,
             "baby_price":             0.0,
             "currency":               "EUR" if price_eur is not None else "TND",
-            "duration_hours":         None,
+            # duration_hours mappé depuis le doc stocké (enrichissement Phase 5)
+            "duration_hours":         float(doc["duration_hours"]) if doc.get("duration_hours") is not None else None,
             "max_participants":       0,
             "registered_participants": 0,
             "available_spots":        None,
             "is_available":           None,   # inconnu — MongoDB ne vérifie pas la dispo réelle
             "already_booked":         False,
-            "has_geospatial_info":    False,
+            "has_geospatial_info":    doc.get("lat") is not None and doc.get("lng") is not None,
             "distance_km":            None,
             "travel_time_min":        None,
             "rating":                 float(doc.get("rating") or 0),
@@ -253,7 +307,7 @@ def get_candidates(
 
     logger.info(
         f"[MongoActivityService] {len(candidates[:max_candidates])} candidats | "
-        f"destination={destination} | raw_docs={len(raw_docs)}"
+        f"destination={destination} | indoor={indoor_preference} | raw_docs={len(raw_docs)}"
     )
     return candidates[:max_candidates]
 
@@ -268,6 +322,8 @@ class MongoActivityService:
         budget_level: Optional[str],
         traveler_type: Optional[str],
         max_candidates: int = 10,
+        indoor_preference: Optional[bool] = None,
+        beach_score: float = 0.0,
     ) -> List[Dict[str, Any]]:
         return get_candidates(
             destination=destination,
@@ -275,4 +331,6 @@ class MongoActivityService:
             budget_level=budget_level,
             traveler_type=traveler_type,
             max_candidates=max_candidates,
+            indoor_preference=indoor_preference,
+            beach_score=beach_score,
         )
