@@ -22,7 +22,7 @@ SEMANTIC_CONFIG = NodeConfig(
     name="semantic_agent",
     node_type="comprehension",
     provider="groq",
-    model="meta-llama/llama-4-scout-17b-16e-instruct",  # 30K TPM, MoE 17B — prompt 300 lignes trop complexe pour 8B
+    model="llama-3.3-70b-versatile",  # llama-4-scout retire du catalogue Groq (404 model_not_found, verifie 2026-07-28)
     temperature=0.0,   # JSON déterministe — pas de créativité nécessaire
     max_tokens=800,
     response_format="json",
@@ -45,7 +45,7 @@ DAY_PLANNER_CONFIG = NodeConfig(
     name="day_planner",
     node_type="llm_agent",
     provider="groq",
-    model="meta-llama/llama-4-scout-17b-16e-instruct",  # 30K TPM, MoE 17B — gère les prompts >6K tokens
+    model="llama-3.3-70b-versatile",  # llama-4-scout retire du catalogue Groq (404 model_not_found, verifie 2026-07-28)
     temperature=0.3,
     max_tokens=3000,
     response_format="json",
@@ -72,7 +72,7 @@ RECOMMENDATION_RESPONSE_CONFIG = NodeConfig(
     name="recommendation_response",
     node_type="llm_agent",
     provider="groq",
-    model="meta-llama/llama-4-scout-17b-16e-instruct",  # 30K TPM, MoE 17B — qualité + vitesse
+    model="llama-3.3-70b-versatile",  # llama-4-scout retire du catalogue Groq (404 model_not_found, verifie 2026-07-28)
     temperature=0.4,
     max_tokens=3000,
     response_format="json",
@@ -112,9 +112,9 @@ RESTAURANT_C_CONFIG = NodeConfig(
 # Node                       Groq actuel (free)                     Ollama futur ($20/mois)
 # ─────────────────────────  ─────────────────────────────────────  ──────────────────────────
 # intent_classifier          llama-3.3-70b-versatile                gpt-oss:120b
-# semantic_node              meta-llama/llama-4-scout-17b-16e       gemini-3-flash-preview
-# day_planner                meta-llama/llama-4-scout-17b-16e       gpt-oss:120b
-# recommendation_response    meta-llama/llama-4-scout-17b-16e       gpt-oss:120b
+# semantic_node              llama-3.3-70b-versatile (ex llama-4-scout, retire 2026-07-28)  gemini-3-flash-preview
+# day_planner                llama-3.3-70b-versatile (ex llama-4-scout, retire 2026-07-28)  gpt-oss:120b
+# recommendation_response    llama-3.3-70b-versatile (ex llama-4-scout, retire 2026-07-28)  gpt-oss:120b
 # final_response             llama-3.3-70b-versatile                gpt-oss:120b
 # ranking                    llama-3.1-8b-instant                   gpt-oss:120b
 # ══════════════════════════════════════════════════════════════════════════════
