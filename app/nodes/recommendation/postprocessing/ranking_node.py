@@ -1,4 +1,5 @@
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict, List, Set
 
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.config.settings import (
@@ -6,7 +7,13 @@ from app.config.settings import (
     AVAILABILITY_AGENCY_STRONG_THRESHOLD,
     AVAILABILITY_UNKNOWN_FACTOR_PROTECTED,
     AVAILABILITY_UNKNOWN_FACTOR_OPEN,
+    INTERACTIONS_REDIS_PREFIX,
 )
+
+try:
+    from app.config.redis_config import r as _redis
+except Exception:
+    _redis = None
 
 # Tier → business_score par défaut quand le candidat n'en a pas un explicite
 _TIER_BUSINESS_SCORE: Dict[str, float] = {
@@ -28,6 +35,26 @@ class RankingNode(BaseNode):
         super().__init__(NodeConfig(name="ranking", node_type="technical"))
 
     # ─────────────────────────────────────────────────────────────────
+    def _load_cross_session_rejected(self, state: Dict[str, Any]) -> Set[str]:
+        """Lit les types rejetés cross-session depuis Redis. Retourne set vide si indisponible."""
+        if not _redis:
+            return set()
+        traveller_id = (
+            state.get("travellerId")
+            or (state.get("profile_data") or {}).get("id")
+        )
+        if not traveller_id:
+            return set()
+        try:
+            raw = _redis.get(f"{INTERACTIONS_REDIS_PREFIX}{traveller_id}")
+            if raw:
+                data = json.loads(raw)
+                return set(data.get("rejected_types", []))
+        except Exception:
+            pass
+        return set()
+
+    # ─────────────────────────────────────────────────────────────────
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
 
         candidates: List[Dict] = state.get("candidates") or []
@@ -35,6 +62,11 @@ class RankingNode(BaseNode):
         if not candidates:
             self.logger.info("no candidates to rank")
             return {"ranked_results": [], "total_ranked": 0}
+
+        # ── Signaux cross-session (Phase 5) ─────────────────────────────
+        cross_session_rejected = self._load_cross_session_rejected(state)
+        if cross_session_rejected:
+            self.logger.info(f"[Ranking] cross-session rejected types: {cross_session_rejected}")
 
         # ── Pré-passe : facteur dynamique pour dispo inconnue ────────────
         # Force du meilleur candidat CONFIRMÉ (is_available=True — uniquement SOURCE 1 agence)
@@ -52,6 +84,18 @@ class RankingNode(BaseNode):
 
         for c in candidates:
             candidate = dict(c)
+
+            # Activités dont le type a été rejeté cross-session → score nul
+            if cross_session_rejected and candidate.get("domain") == "activity":
+                activity_type = candidate.get("activity_type", "")
+                if activity_type and activity_type in cross_session_rejected:
+                    candidate["cross_session_rejected"] = True
+                    candidate["user_score"]     = 0.0
+                    candidate["business_score"] = self._business_score(candidate)
+                    candidate["availability_factor"] = 1.0
+                    candidate["ranked_score"]   = 0.0
+                    scored.append(candidate)
+                    continue
 
             user_score     = self._user_score(candidate)
             business_score = self._business_score(candidate)

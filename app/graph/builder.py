@@ -25,6 +25,8 @@ from app.nodes.recommendation.postprocessing.recommendation_response_node import
 from app.nodes.recommendation.postprocessing.day_planner_node import DayPlannerNode
 from app.nodes.recommendation.postprocessing.day_skeleton_node import DaySkeletonNode
 from app.nodes.conversation.information_node import InformationNode
+from app.nodes.shared.feedback_logger_node import FeedbackLoggerNode
+from app.nodes.user_profile.profile_writer_node import ProfileWriterNode
 
 
 # Intents qui nécessitent le pipeline complet (weather → semantic → orchestrator → domaines)
@@ -119,6 +121,10 @@ def build_graph():
     graph.add_node("final_response",             FinalResponseNode())
     # Agent 2 : présentation des recommandations réelles (chemin data_merger)
     graph.add_node("recommendation_response",    RecommendationResponseNode())
+
+    # ── PHASE 5 : APPRENTISSAGE ───────────────────────────────────────────────
+    graph.add_node("feedback_logger",  FeedbackLoggerNode())
+    graph.add_node("profile_writer",   ProfileWriterNode())
     
     
     
@@ -177,15 +183,19 @@ def build_graph():
     graph.add_edge("restaurant_node", "data_merger")
     graph.add_edge("activity_node",   "data_merger")
 
-    # data_merger → constraint_validator → ranking_node → recommendation_response (Agent 2) → END
+    # data_merger → constraint_validator → ranking_node → day_planner → recommendation_response
     graph.add_edge("data_merger",             "constraint_validator")
     graph.add_edge("constraint_validator",    "ranking_node")
-    graph.add_edge("ranking_node", "day_planner")
-    graph.add_edge("day_planner",  "recommendation_response")
-    
-    # final_reponse ( Agent 2) → END
-    graph.add_edge("recommendation_response", END)
-    # final_response (Agent 1) → END
+    graph.add_edge("ranking_node",            "day_planner")
+    graph.add_edge("day_planner",             "recommendation_response")
+
+    # ── PHASE 5 — après recommendation_response ───────────────────────────────
+    # recommendation_response → feedback_logger → profile_writer → END
+    graph.add_edge("recommendation_response", "feedback_logger")
+    graph.add_edge("feedback_logger",         "profile_writer")
+    graph.add_edge("profile_writer",          END)
+
+    # final_response (Agent 1) → END directement (pas de recommandation = pas de feedback)
     graph.add_edge("final_response", END)
 
     return graph.compile()

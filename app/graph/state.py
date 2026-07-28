@@ -156,9 +156,9 @@ class GraphState(TypedDict):
     intent_handled:        Optional[str]
     response_confidence:   Optional[float]
 
-    # ── Apprentissage ────────────────────────────────────────────────────────
-    # RÉSERVÉ — feedback_logger_node (Phase 5, non implémenté)
-    feedback_event: Dict[str, Any]
+    # ── Apprentissage (Phase 5) ──────────────────────────────────────────────
+    feedback_event:  Dict[str, Any]   # produit par feedback_logger_node
+    profile_written: Optional[bool]   # produit par profile_writer_node
 
     # ── Technique — accumulateurs LangGraph (operator.add) ───────────────────
     # Chaque node peut y appendre via BaseNode.__call__ (metrics) / BaseNode.fallback (errors)
@@ -255,8 +255,9 @@ def build_initial_state(
         "intent_handled":        None,
         "response_confidence":   None,
 
-        # Apprentissage
-        "feedback_event": {},
+        # Apprentissage (Phase 5)
+        "feedback_event":  {},
+        "profile_written": None,
 
         # Technique
         "node_metrics": [],

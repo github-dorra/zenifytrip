@@ -69,9 +69,12 @@ REDIS_PASSWORD=os.getenv("REDIS_PASSWORD")
 #   Valeur actuelle (50)     → couvre ~16 workers Gunicorn avec marge de sécurité
 REDIS_MAX_CONNECTIONS = int(os.getenv("REDIS_MAX_CONNECTIONS", "50"))
 
-# Cache Keys — reserve aux futures cles Redis (interactions:{traveller_id}, session:{session_id})
-# Le cache profil est passe sur MongoDB (traveller_profile_cache) — plus besoin de prefixe ici.
+# Cache Keys
 REDIS_ENV = os.getenv("REDIS_ENV", "dev")        # dev | staging | prod — à définir dans .env
+
+# Phase 5 — mémoire cross-session des préférences utilisateur
+INTERACTIONS_REDIS_PREFIX      = "interactions:"   # clé = interactions:{traveller_id}
+INTERACTIONS_REDIS_TTL_SECONDS = int(os.getenv("INTERACTIONS_REDIS_TTL_SECONDS", str(90 * 24 * 3600)))  # 90 jours
 
 # TTL CACHE PROFILE IN REDIS
 # Voyage futur  : TTL = (returnDate - now) + EXTRA  (max MAX_TTL)
