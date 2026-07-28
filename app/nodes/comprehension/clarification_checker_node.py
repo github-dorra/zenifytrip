@@ -18,6 +18,15 @@ class ClarificationCheckerNode(BaseNode):
     }
     NON_CRITICAL_FIELDS = ["travelers", "budget_level", "interests"]
 
+    # Intents larges (aucun domaine précis demandé) — sans ce complément,
+    # "recommendation" n'a qu'1 seul champ possible (destination), donc
+    # suggestion_mode="exploratory" (2+ champs bloquants) n'était JAMAIS
+    # atteignable, même pour un USER NATIF totalement vague ("je veux
+    # voyager"). Limité à ces 2 intents larges — pas aux recommandations
+    # de domaine précis (restaurant/activity/accommodation/flight) où la
+    # destination seule suffit déjà à agir sans reposer de question.
+    BROAD_INTENTS_NEED_INTERESTS = {"trip_package_recommendation", "day_planning"}
+
     def __init__(self):
         super().__init__(
             NodeConfig(
@@ -52,6 +61,9 @@ class ClarificationCheckerNode(BaseNode):
         # 2. REQUIRED LOGIC
         # =========================
         required_fields = list(self.REQUIRED_FIELDS_BY_ACTION.get(action_type, []))
+
+        if action_type == "recommendation" and primary_intent in self.BROAD_INTENTS_NEED_INTERESTS:
+            required_fields = required_fields + ["interests"]
 
         # Si le voyage est actif OU destination déjà résolue depuis l'hôtel
         # → ne pas bloquer le pipeline pour la demander
