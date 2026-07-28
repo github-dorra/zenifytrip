@@ -2,9 +2,21 @@
 this node is used to merge profile data with intent fieds extractor to enrichie the context 
 """
 import re
-from typing import Dict, Any
+from typing import Dict, Any, List
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from datetime import datetime, timedelta
+
+
+def _onboarding_to_search_text(values: List[str]) -> List[str]:
+    """
+    Les identifiants d'onboarding sont en snake_case stable (ex. "fruits_de_mer"),
+    mais la recherche restaurant (Atlas Search + stem_keyword) attend du texte
+    naturel espacé, comme stocké en base ("Fruits de mer") — un identifiant
+    underscore ne matche jamais un champ "categories"/"tags" réel (bug trouvé
+    en testant l'onboarding end-to-end : la préférence atteignait bien
+    merged_context mais n'avait aucun effet sur les résultats de recherche).
+    """
+    return [v.replace("_", " ") for v in values]
 
 
 class ContextMergerNode(BaseNode):
@@ -141,7 +153,7 @@ class ContextMergerNode(BaseNode):
             + (constraints.get("interests") or [])
             + tags
             + traveller_tags
-            + (onboarding_prefs.get("travel_purpose") or [])
+            + _onboarding_to_search_text(onboarding_prefs.get("travel_purpose") or [])
         ))
 
         # -----------------------------
@@ -157,7 +169,9 @@ class ContextMergerNode(BaseNode):
         # culinary_interests de l'onboarding rejoint restaurant_preferences —
         # c'est le champ réellement consommé par restaurant_node (mapping
         # establishment_types + boost keywords), pas juste un tag générique.
-        onboarding_by_pref_key = {"restaurant_preferences": onboarding_prefs.get("culinary_interests") or []}
+        onboarding_by_pref_key = {
+            "restaurant_preferences": _onboarding_to_search_text(onboarding_prefs.get("culinary_interests") or [])
+        }
 
         for pref_key in ["activity_preferences", "restaurant_preferences", "flight_preferences"]:
             new_prefs = constraints.get(pref_key) or []
