@@ -8,6 +8,7 @@ Source : GET /api/bookings?travellerId={id}
 """
 import logging
 import math
+import re
 import requests
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -42,6 +43,12 @@ def _match_city_in_text(text: str) -> Optional[str]:
     Cherche un nom de ville tunisienne connu dans un texte libre.
     Retourne le nom canonique (ex: "Sousse", "Hammamet / Nabeul").
     Prend le match le plus long pour éviter "el" dans "el kantaoui".
+
+    Matching sur limites de mot (\\b) — pas un simple containment substring :
+    "tunis" ne doit PAS matcher dans "tunisie" (le pays entier, pas la ville),
+    bug trouvé en testant le mode exploratoire ("je veux organiser un voyage
+    en Tunisie" était silencieusement résolu en destination="Tunis", cachant
+    le besoin réel de clarification sur la région/ville).
     """
     from app.data.tunisia_destinations import CITY_TO_IATA, TUNISIA_DESTINATIONS
 
@@ -53,7 +60,8 @@ def _match_city_in_text(text: str) -> Optional[str]:
         norm_key = _normalize(city_key)
         if len(norm_key) < 3:          # ignorer clés trop courtes ("el", "le")
             continue
-        if norm_key in normalized_text and len(norm_key) > best_len:
+        pattern = r"\b" + re.escape(norm_key) + r"\b"
+        if re.search(pattern, normalized_text) and len(norm_key) > best_len:
             canonical = TUNISIA_DESTINATIONS.get(iata, {}).get("city")
             if canonical:
                 best_city = canonical
