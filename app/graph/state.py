@@ -45,6 +45,9 @@ class GraphState(TypedDict):
     #   tourist_group     : {tourist_group_id, tourist_group_name, agency_name, tour_operator_name}
     #   tags              : {tags: [...], traveller_tags: [...]}   ← snake_case
     #   voucher_id        : str
+    #   onboarding_preferences : {trip_type, travel_purpose: [...], culinary_interests: [...]}
+    #                            ← TravellerPreferencesService, None si jamais capturées/skippées
+    #                            (USER RÉEL et USER NATIF, keyé sur user_id — pas traveller_id)
     profile_data: Dict[str, Any]
 
     # ── Contexte fusionné ────────────────────────────────────────────────────
@@ -53,8 +56,10 @@ class GraphState(TypedDict):
     #              start_date, end_date, duration_days, natural_date_text,
     #              travelers, budget_level, interests,
     #              activity_preferences, restaurant_preferences, flight_preferences,
-    #              accommodation_preferences, is_family,
+    #              accommodation_preferences, is_family, travel_persona,
     #              primary_intent, secondary_intents, action_type}
+    # travel_persona ("solo"|"couple"|"famille"|"groupe") : trait stable de
+    # l'onboarding (onboarding_preferences.trip_type), jamais recalculé par tour
     merged_context: Dict[str, Any]
 
     # ── Disponibilité / validation commerciale ───────────────────────────────

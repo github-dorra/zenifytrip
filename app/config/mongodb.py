@@ -43,6 +43,16 @@ def traveller_profile_collection() -> Collection:
     return get_collection("traveller_profile_cache")
 
 
+def traveller_preferences_collection() -> Collection:
+    """
+    Préférences d'onboarding (trip_type, travel_purpose, culinary_interests) —
+    donnée ZenifyTrip propre et durable, PAS un cache (contrairement à
+    traveller_profile_cache) : keyée sur user_id, aucune expiration, fonctionne
+    pour USER RÉEL et USER NATIF indépendamment d'un traveller_id agence.
+    """
+    return get_collection("traveller_preferences")
+
+
 def ensure_indexes():
     """
     Crée les index nécessaires sur les deux collections.

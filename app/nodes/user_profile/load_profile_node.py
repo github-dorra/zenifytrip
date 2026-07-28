@@ -1,9 +1,10 @@
 from typing import Dict, Any
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.services.profile_cache_service import ProfileCacheService
+from app.services.traveller_preferences_service import TravellerPreferencesService
 
 class ProfileLoaderNode(BaseNode):
-    
+
     def __init__(self):
         super().__init__(
             NodeConfig(
@@ -11,24 +12,32 @@ class ProfileLoaderNode(BaseNode):
                 node_type= "technical", )
             )
 
-        
+
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
 
         traveller_id = state.get("travellerId")
         user_id      = state.get("user_id")
 
+        # Préférences d'onboarding (trip_type, travel_purpose, culinary_interests) —
+        # keyées sur user_id, donc lues pour USER RÉEL ET USER NATIF, indépendamment
+        # d'un traveller_id agence (None si jamais capturées ou explicitement skippées).
+        onboarding_preferences = TravellerPreferencesService.get_preferences(user_id)
+
         if not traveller_id:
             self.logger.info("[ProfileLoaderNode] Pas de travellerId → USER NATIF")
             return {
-                "profile_data": {}, 
+                "profile_data": (
+                    {"onboarding_preferences": onboarding_preferences}
+                    if onboarding_preferences else {}
+                ),
                 "user_type": "native"
                 }
-            
-        
-        # ── LECTURE CACHE REDIS ───────────────────────────────────────────
+
+
+        # ── LECTURE CACHE MONGODB (traveller_profile_cache) ───────────────
         cached_profile = ProfileCacheService.get_profile(traveller_id)
-        
-        
+
+
         # ── CACHE MISS → build complet depuis API + cache avec TTL dynamique ─
         profile = None
 
@@ -41,7 +50,13 @@ class ProfileLoaderNode(BaseNode):
             )
 
         if not profile:
-            return {"profile_data": {}, "user_type": "native"}
+            return {
+                "profile_data": (
+                    {"onboarding_preferences": onboarding_preferences}
+                    if onboarding_preferences else {}
+                ),
+                "user_type": "native"
+            }
         
         # ── STRUCTURE OUTPUT ──────────────────
         profile_data = {
@@ -89,6 +104,9 @@ class ProfileLoaderNode(BaseNode):
             # API 2 — voucher.id
             "voucher_id": profile.get("meta", {}).get("voucher_id"),
         }
+
+        if onboarding_preferences:
+            profile_data["onboarding_preferences"] = onboarding_preferences
 
         return {
             "profile_data": profile_data,

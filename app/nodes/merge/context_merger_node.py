@@ -36,6 +36,9 @@ class ContextMergerNode(BaseNode):
         profile_travel = profile_data.get("travel_preferences", {})
         profile_availability = profile_data.get("availability", {})
         traveller_profile = profile_data.get("traveller_profile", {})
+        # Préférences d'onboarding (trait stables, capturées une fois) — None si
+        # jamais capturées ou explicitement skippées (cf. ProfileLoaderNode).
+        onboarding_prefs = profile_data.get("onboarding_preferences") or {}
 
         # -----------------------------
         # ROUTE — preserve si rien de nouveau
@@ -138,15 +141,29 @@ class ContextMergerNode(BaseNode):
             + (constraints.get("interests") or [])
             + tags
             + traveller_tags
+            + (onboarding_prefs.get("travel_purpose") or [])
         ))
+
+        # -----------------------------
+        # TRAVEL PERSONA — trait stable de l'onboarding, capturé une fois
+        # (ne varie pas d'un tour à l'autre, contrairement à is_family)
+        # -----------------------------
+        if onboarding_prefs.get("trip_type") and not merged.get("travel_persona"):
+            merged["travel_persona"] = onboarding_prefs["trip_type"]
 
         # -----------------------------
         # PREFERENCES — accumulation multi-tour
         # -----------------------------
+        # culinary_interests de l'onboarding rejoint restaurant_preferences —
+        # c'est le champ réellement consommé par restaurant_node (mapping
+        # establishment_types + boost keywords), pas juste un tag générique.
+        onboarding_by_pref_key = {"restaurant_preferences": onboarding_prefs.get("culinary_interests") or []}
+
         for pref_key in ["activity_preferences", "restaurant_preferences", "flight_preferences"]:
             new_prefs = constraints.get(pref_key) or []
             existing_prefs = merged.get(pref_key) or []
-            merged[pref_key] = list(set(existing_prefs + new_prefs))
+            onboarding_extra = onboarding_by_pref_key.get(pref_key) or []
+            merged[pref_key] = list(set(existing_prefs + new_prefs + onboarding_extra))
 
         # ACCOMMODATION — accumulation + profil
         _acc = profile_travel.get("accommodation") or {}
