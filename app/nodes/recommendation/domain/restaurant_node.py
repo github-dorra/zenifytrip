@@ -33,6 +33,21 @@ class RestaurantNode(BaseNode):
         "snack": ["fast_food", "dessert"],
     }
 
+    # Préférence libre (restaurant_preferences, texte extrait par intent_classifier)
+    # -> establishment_types canoniques de restaurant_collection (7 valeurs, 100% remplies).
+    # Rule-based, jamais deviné par un LLM — même doctrine que l'enrichissement
+    # semantique d'activities_collection (Phase 5).
+    _PREFERENCE_TO_ESTABLISHMENT_TYPE = {
+        "pizza": ["pizzeria"], "pizzeria": ["pizzeria"], "pizzas": ["pizzeria"],
+        "cafe": ["cafe"], "café": ["cafe"], "coffee": ["cafe"],
+        "dessert": ["dessert"], "desserts": ["dessert"],
+        "patisserie": ["dessert"], "pâtisserie": ["dessert"], "sweet": ["dessert"],
+        "bbq": ["bbq"], "barbecue": ["bbq"], "grill": ["bbq"],
+        "fastfood": ["fast_food"], "fast_food": ["fast_food"], "fast-food": ["fast_food"],
+        "burger": ["fast_food"], "burgers": ["fast_food"],
+        "bar": ["bar"], "pub": ["bar"],
+    }
+
     def __init__(self):
         super().__init__(
             NodeConfig(
@@ -52,19 +67,34 @@ class RestaurantNode(BaseNode):
         if 15 <= h < 18: return "snack"
         return "soir"
 
-    def _resolve_establishment_types(self, state: Dict[str, Any]) -> Optional[List[str]]:
+    @classmethod
+    def _establishment_types_from_preferences(cls, preferences: List[str]) -> Optional[List[str]]:
+        """Mappe les préférences connues (ex. 'pizza') vers establishment_types. None si aucun match connu — jamais de devinette."""
+        types: List[str] = []
+        for pref in preferences:
+            mapped = cls._PREFERENCE_TO_ESTABLISHMENT_TYPE.get(str(pref).strip().lower())
+            if mapped:
+                types.extend(mapped)
+        return list(dict.fromkeys(types)) or None
+
+    def _resolve_establishment_types(
+        self, state: Dict[str, Any], merged_context: Dict[str, Any]
+    ) -> Optional[List[str]]:
         """
-        Priorité : préférence explicite du voyageur > day_skeleton (plan
+        Priorité : préférence explicite du voyageur (mappée vers un type
+        precis si le vocabulaire est reconnu, ex. "pizza" -> pizzeria ; sinon
+        aucun filtre plutôt qu'une devinette) > day_skeleton (plan
         multi-créneaux, pool complet nécessaire en aval) > heure courante
         (seulement si une date de séjour est fournie).
         """
         constraints  = (state.get("intent_result") or {}).get("constraints") or {}
         day_skeleton = state.get("day_skeleton")
 
-        if constraints.get("restaurant_preferences"):
-            # Désir déjà exprimé (ex. "vue mer", "halal") — ne pas imposer
-            # un filtre horaire qui pourrait entrer en conflit.
-            return None
+        # Préférences accumulées sur la session (context_merger) — un désir
+        # exprimé à un tour précédent reste valide, pas seulement ce message.
+        restaurant_preferences = merged_context.get("restaurant_preferences") or []
+        if restaurant_preferences:
+            return self._establishment_types_from_preferences(restaurant_preferences)
 
         if day_skeleton:
             # Demande multi-créneaux (day_planning) — le pool complet doit
@@ -97,7 +127,7 @@ class RestaurantNode(BaseNode):
         hotel_id    = (profile_data.get("travel_preferences") or {}).get("hotel_id")
 
         wants_proximity = bool(set(global_keywords) & PROXIMITY_KEYWORDS)
-        establishment_types = self._resolve_establishment_types(state)
+        establishment_types = self._resolve_establishment_types(state, merged_context)
 
         # Cas 1 — proximity explicitement demandée + hotel connu
         if wants_proximity and hotel_id:
@@ -146,6 +176,12 @@ class RestaurantNode(BaseNode):
         budget_level    = merged_context.get("budget_level")
         is_family       = merged_context.get("is_family", False)
 
+        # Préférences explicites (ex. "pizza") — extraites en champ structuré par
+        # intent_classifier, jamais lues par semantic_node : sans ce merge elles
+        # n'atteignaient jamais la recherche (bug identifié 2026-07-28).
+        restaurant_preferences = merged_context.get("restaurant_preferences") or []
+        search_keywords = list(dict.fromkeys([*global_keywords, *restaurant_preferences]))
+
         suggestion_mode = state.get("suggestion_mode") or "exploratory"
         max_candidates  = 15 if suggestion_mode == "exploratory" else 10
 
@@ -155,14 +191,15 @@ class RestaurantNode(BaseNode):
         self.logger.info(
             f"RestaurantNode strategy: mode={search_strategy['mode']} | "
             f"destination={destination} | "
-            f"proximity_kw={set(global_keywords) & PROXIMITY_KEYWORDS}"
+            f"proximity_kw={set(global_keywords) & PROXIMITY_KEYWORDS} | "
+            f"establishment_types={search_strategy.get('establishment_types')}"
         )
 
         # ── 3. APPEL SERVICE ─────────────────────────────────────────
         try:
             raw_candidates, benchmark = RestaurantService.get_restaurant_candidates(
                 semantic_query=semantic_query,
-                global_keywords=global_keywords,
+                global_keywords=search_keywords,
                 destination=destination,
                 budget_level=budget_level,
                 is_family=is_family,

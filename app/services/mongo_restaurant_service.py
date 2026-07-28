@@ -143,9 +143,11 @@ class MongoRestaurantService:
     ) -> List[Dict]:
         """
         Couche 1 (filtre dur) : destination (city/zone) + establishment_types
-        si fourni (créneau horaire). Couche 2 (pertinence) : categories
-        (boost x3) + tags (boost x2) + description, sur les mots-clés déjà
-        stemmés. searchScore exposé via $meta pour normalisation en Python.
+        si fourni (créneau horaire ou préférence mappée, cf. restaurant_node).
+        Couche 2 (pertinence) : categories (boost x3) + tags (boost x2) +
+        features (boost x1.5, ex. "livraison"/"terrasse") + description,
+        sur les mots-clés déjà stemmés. searchScore exposé via $meta pour
+        normalisation en Python.
         """
         compound: Dict[str, Any] = {
             "filter": [{"text": {"query": destination, "path": ["city", "zone"]}}],
@@ -161,6 +163,8 @@ class MongoRestaurantService:
                           "score": {"boost": {"value": 3}}}},
                 {"text": {"query": stems, "path": "tags",
                           "score": {"boost": {"value": 2}}}},
+                {"text": {"query": stems, "path": "features",
+                          "score": {"boost": {"value": 1.5}}}},
                 {"text": {"query": stems, "path": "description"}},
             ]
 
