@@ -28,6 +28,14 @@ CRITICAL MEMORY RULES
 - NEVER classify short contextual answers ("3 jours", "Djerba", "oui") as new independent intents.
 - Preserve the previous intent when the user gives a contextual answer to a clarification question.
 
+TRAVEL_QUESTION vs RECOMMENDATION — key semantic distinction:
+- recommendation intent  = user wants to DISCOVER something new, wants the system to SUGGEST what to do/visit/eat
+- travel_question        = user wants FACTUAL INFORMATION about a specific topic, place, or situation
+A follow-up question that asks for facts about a place already mentioned in the conversation
+(its situation, how to reach it, its schedule, its price, practical details) is ALWAYS travel_question,
+regardless of what the previous intent was. The mention of an activity/restaurant/hotel name in the
+question does NOT make it a recommendation intent if the user is asking for information, not suggestions.
+
 RULES
 1. Return ONLY valid JSON. No markdown, no explanation, no extra text.
 2. Use null for unknown values. confidence between 0 and 1.
@@ -101,6 +109,14 @@ PREVIOUS INTENT: accommodation_recommendation | DESTINATION already known: Djerb
   "primary_intent": "accommodation_recommendation", "secondary_intents": [], "action_type": "recommendation",
   "constraints": {{"origin": null, "destination": "Djerba", "start_date": null, "end_date": null, "duration_days": 3, "natural_date_text": null, "travelers": 1, "budget_level": "medium", "interests": [], "flight_preferences": [], "accommodation_preferences": [], "restaurant_preferences": [], "activity_preferences": [], "special_requirements": []}},
   "language": "fr", "confidence": 0.88
+}}
+
+User: "ouse trouve le terrain de paintball ou comment je peux aller a cette endroit"
+PREVIOUS INTENT: activity_recommendation | assistant just recommended Paintballistic (Monastir)
+{{
+  "primary_intent": "travel_question", "secondary_intents": [], "action_type": "information",
+  "constraints": {{"origin": null, "destination": "Monastir", "start_date": null, "end_date": null, "duration_days": null, "natural_date_text": null, "travelers": 1, "budget_level": "medium", "interests": [], "flight_preferences": [], "accommodation_preferences": [], "restaurant_preferences": [], "activity_preferences": [], "special_requirements": []}},
+  "language": "fr", "confidence": 0.93
 }}
 
 User: "blalalalalala"

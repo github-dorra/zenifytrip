@@ -13,12 +13,13 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://ollama.com")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
-# Initialisation client Groq + Ollama
-groq_client = Groq(api_key=GROQ_API_KEY)
+# Initialisation des clients — garde contre crash si clé absente
+groq_client   = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 ollama_client = Client(
     host=OLLAMA_BASE_URL,
-    headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"})
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"}
+) if OLLAMA_API_KEY else None
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 def call_groq_llm(
@@ -27,7 +28,7 @@ def call_groq_llm(
     temperature: float = 0.2,
     max_tokens: int = 1024
 ):
-    if not GROQ_API_KEY:
+    if not groq_client:
         raise ValueError("GROQ_API_KEY manquante dans le fichier .env")
 
     response = groq_client.chat.completions.create(
@@ -58,7 +59,7 @@ def call_ollama_llm(
     max_tokens: int = 1024,
     response_format: Optional[Any] = None
 ):
-    if not OLLAMA_API_KEY:
+    if not ollama_client:
         raise ValueError("OLLAMA_API_KEY manquante dans le fichier .env")
     
     kwargs = {
@@ -86,18 +87,23 @@ def call_gemini_llm(
     prompt: str,
     model: str,
     temperature: float = 0.2,
-    max_tokens: int = 1024
+    max_tokens: int = 1024,
+    response_format: Optional[Any] = None,
 ):
-    if not GEMINI_API_KEY:
+    if not gemini_client:
         raise ValueError("GEMINI_API_KEY manquante dans le fichier .env")
+
+    config: dict = {
+        "temperature": temperature,
+        "max_output_tokens": max_tokens,
+    }
+    if response_format == "json":
+        config["response_mime_type"] = "application/json"
 
     response = gemini_client.models.generate_content(
         model=model,
         contents=prompt,
-        config={
-            "temperature": temperature,
-            "max_output_tokens": max_tokens,
-        },
+        config=config,
     )
 
     usage = {}
@@ -144,12 +150,27 @@ def call_llm(
         )
         
     if provider == "gemini":
-        return call_gemini_llm(
-            prompt=prompt,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-
+        try:
+            return call_gemini_llm(
+                prompt=prompt,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
+        except Exception as e:
+            # Quota épuisé ou clé invalide → fallback Groq automatique
+            if ("429" in str(e) or "quota" in str(e).lower()) and GROQ_API_KEY:
+                import logging
+                logging.getLogger("llm_service").warning(
+                    f"[Gemini] quota dépassé — fallback Groq (llama-3.3-70b-versatile) | {str(e)[:80]}"
+                )
+                return call_groq_llm(
+                    prompt=prompt,
+                    model="llama-3.3-70b-versatile",
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            raise
 
     raise ValueError("Provider invalide. Utilise 'groq' ou 'ollama' ou 'gemini'.")

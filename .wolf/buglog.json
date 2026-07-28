@@ -1,0 +1,9 @@
+[
+  {
+    "date": "2026-07-28",
+    "error_message": "travel_question passait par le pipeline complet (weather→semantic→orchestrator)",
+    "root_cause": "route_after_clarification_checker traitait tous les non-RECOMMENDATION_INTENTS de la même façon (→ final_response), sans chemin dédié pour travel_question",
+    "fix": "Ajout de INFORMATIVE_INTENTS = {travel_question, booking_question} + route → information_node dans builder.py",
+    "tags": ["routing", "builder", "travel_question", "informative_pipeline"]
+  }
+]

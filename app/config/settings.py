@@ -97,3 +97,10 @@ AVAILABILITY_UNKNOWN_FACTOR_OPEN      = float(os.getenv("AVAILABILITY_UNKNOWN_FA
 
 # --- Seuil de basculement Tier 1 (Mongo) -> Tier 2 (Google Places) restaurant_service.py
 RESTAURANT_MONGO_MIN_RESULTS = int(os.getenv("RESTAURANT_MONGO_MIN_RESULTS", "3"))
+
+# --- Session Redis — persistance de session entre les tours
+SESSION_TTL_SECONDS         = int(os.getenv("SESSION_TTL_SECONDS",     "1800"))  # 30 min
+WEATHER_CACHE_TTL_SECONDS   = int(os.getenv("WEATHER_CACHE_TTL_SECONDS","7200"))  # 2h
+SESSION_MAX_BYTES           = int(os.getenv("SESSION_MAX_BYTES",        "5120"))  # 5 KB
+SESSION_MAX_CANDIDATES      = int(os.getenv("SESSION_MAX_CANDIDATES",   "4"))
+SESSION_MAX_TURN_CHARS      = int(os.getenv("SESSION_MAX_TURN_CHARS",   "200"))

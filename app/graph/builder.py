@@ -24,13 +24,11 @@ from app.nodes.recommendation.postprocessing.ranking_node import RankingNode
 from app.nodes.recommendation.postprocessing.recommendation_response_node import RecommendationResponseNode
 from app.nodes.recommendation.postprocessing.day_planner_node import DayPlannerNode
 from app.nodes.recommendation.postprocessing.day_skeleton_node import DaySkeletonNode
+from app.nodes.conversation.information_node import InformationNode
 
 
-
-TRAVEL_INTENTS = {
-    "travel_question",
-    "booking_question",
-    "profile_update",
+# Intents qui nécessitent le pipeline complet (weather → semantic → orchestrator → domaines)
+RECOMMENDATION_INTENTS = {
     "flight_recommendation",
     "accommodation_recommendation",
     "restaurant_recommendation",
@@ -38,6 +36,9 @@ TRAVEL_INTENTS = {
     "day_planning",
     "trip_package_recommendation",
 }
+
+# Intents routés vers le pipeline informatif (information_node → final_response)
+INFORMATIVE_INTENTS = {"travel_question", "booking_question"}
 
 
 def route_after_clarification_checker(state: GraphState) -> str:
@@ -51,10 +52,16 @@ def route_after_clarification_checker(state: GraphState) -> str:
     if next_action == "ask_clarification":
         return "final_response"
 
-    if primary_intent in TRAVEL_INTENTS:
-        return "weather_node"
+    # Pipeline informatif : travel_question, booking_question
+    if primary_intent in INFORMATIVE_INTENTS:
+        return "information_node"
 
-    return "final_response"
+    # profile_update, feedback → réponse directe (pas de pipeline)
+    if primary_intent not in RECOMMENDATION_INTENTS:
+        return "final_response"
+
+    # Pipeline recommandation complet
+    return "weather_node"
 
 
 def route_after_orchestrator(state: GraphState) -> Union[str, List[str]]:
@@ -103,8 +110,12 @@ def build_graph():
     graph.add_node("day_planner", DayPlannerNode())
     graph.add_node("day_skeleton", DaySkeletonNode())
 
+    # ── PIPELINE INFORMATIF ───────────────────────────────────────────────────
+    # travel_question / booking_question → context enrichi → final_response (Agent 1)
+    graph.add_node("information_node",            InformationNode())
+
     # ── RÉPONSE — 2 agents distincts ──────────────────────────────────────────
-    # Agent 1 : clarification / conversations sans candidats (chemin ask_clarification)
+    # Agent 1 : clarification / conversations / pipeline informatif
     graph.add_node("final_response",             FinalResponseNode())
     # Agent 2 : présentation des recommandations réelles (chemin data_merger)
     graph.add_node("recommendation_response",    RecommendationResponseNode())
@@ -129,16 +140,18 @@ def build_graph():
     graph.add_edge("context_merge",        "availability_checker")
     graph.add_edge("availability_checker", "clarification_checker")
 
-    # Routage : clarification → final_response (Agent 1) OU pipeline recommandation
+    # Routage : clarification → final_response | information_node | pipeline recommandation
     graph.add_conditional_edges(
         "clarification_checker",
         route_after_clarification_checker,
         {
-            "weather_node":   "day_skeleton",   # squelette immédiat (<10ms), puis pipeline
-            "final_response": "final_response",
+            "weather_node":     "day_skeleton",     # squelette immédiat (<10ms), puis pipeline
+            "information_node": "information_node", # pipeline informatif
+            "final_response":   "final_response",
         },
     )
-    graph.add_edge("day_skeleton", "weather_node")
+    graph.add_edge("day_skeleton",       "weather_node")
+    graph.add_edge("information_node",   "final_response")
 
     # ── EDGES PHASE 2 ────────────────────────────────────────────────────────
     graph.add_edge("weather_node",  "semantic_node")

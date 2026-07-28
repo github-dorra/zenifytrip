@@ -1,8 +1,9 @@
-from typing import Dict, Any 
-from app.nodes.core.Base_node import BaseNode 
+import json
+from typing import Dict, Any
+from app.nodes.core.Base_node import BaseNode
 from app.prompts.final_response_prompt import RESPONSE_AGENT_PROMPT
 from app.config.definitions import RESPONSE_CONFIG
-from app.graph.state import GraphState 
+from app.graph.state import GraphState
 from app.schemas.reponse_schema import (ResponseAgentOutput,PrimaryIntent)
 from app.nodes.utility.json_parser import parse_json_safely
 
@@ -79,6 +80,12 @@ class FinalResponseNode(BaseNode):
             or {}
         )
 
+        information_context = state.get("information_context")
+        information_context_str = (
+            json.dumps(information_context, ensure_ascii=False)
+            if information_context else "null"
+        )
+
         # =====================================================
         # PROMPT
         # =====================================================
@@ -98,6 +105,7 @@ class FinalResponseNode(BaseNode):
             available_intents=", ".join(
                 PrimaryIntent.__args__
             ),
+            information_context=information_context_str,
         )
 
         raw_output = ""

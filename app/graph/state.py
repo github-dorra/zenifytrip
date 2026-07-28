@@ -133,6 +133,17 @@ class GraphState(TypedDict):
     recommendations: Dict[str, Any]             # RÉSERVÉ — non utilisé actuellement
     itinerary:       Dict[str, Any]
 
+    # ── Pipeline informatif (travel_question / booking_question) ────────────
+    # last_candidates   : chargé depuis Redis (session_manager) au début de chaque tour
+    #                     contient les 3-4 candidats présentés au dernier tour de recommandation
+    #                     format minimal : [{name, destination, address, phone, lat, lng, type}]
+    #                     NE PAS confondre avec ranked_results (candidats du tour courant)
+    # information_context : produit par information_node (Python rule-based)
+    #                       lu par final_response_node pour formuler la réponse
+    #                       format : {subtype, resolved_data, confidence, fallback_suggestion}
+    last_candidates:    Optional[List[Dict[str, Any]]]
+    information_context: Optional[Dict[str, Any]]
+
     # ── Réponse finale ───────────────────────────────────────────────────────
     # final_answer          : → final_response_node | recommendation_response_node
     # response_agent_result : → final_response_node  (objet structuré complet)
@@ -232,6 +243,10 @@ def build_initial_state(
         "total_ranked":     0,
         "recommendations":  {},
         "itinerary":        {},
+
+        # Pipeline informatif
+        "last_candidates":    None,
+        "information_context": None,
 
         # Réponse
         "final_answer":          None,

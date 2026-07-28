@@ -1,8 +1,34 @@
 from app.graph.builder import build_graph
 from app.graph.state import build_initial_state
-import json 
+from app.services.session_manager import SessionManager, _trim_candidates
+from app.config.settings import SESSION_MAX_CANDIDATES, SESSION_MAX_TURN_CHARS
+import json
 import time
 import uuid
+
+
+# ── Fonctions utilitaires session ────────────────────────────────────────────
+
+def extract_last_candidates(result: dict) -> list:
+    """Extrait les 3-4 candidats présentés depuis ranked_results (format minimal)."""
+    ranked = result.get("ranked_results") or []
+    if not ranked:
+        return []
+    return _trim_candidates(ranked[:SESSION_MAX_CANDIDATES])
+
+
+def extract_last_turn(result: dict, user_message: str) -> list:
+    """Retourne les 2 derniers messages (user + assistant) tronqués à SESSION_MAX_TURN_CHARS."""
+    turn = []
+    if user_message:
+        turn.append({"role": "user", "content": user_message[:SESSION_MAX_TURN_CHARS]})
+    final_answer = result.get("final_answer") or ""
+    if final_answer:
+        turn.append({"role": "assistant", "content": final_answer[:SESSION_MAX_TURN_CHARS]})
+    return turn
+
+
+session_manager = SessionManager()
 
 def main():
     graph = build_graph()
@@ -17,6 +43,8 @@ def main():
 
     print("Assistant: Bonjour ! Où souhaitez-vous partir ?")
 
+    user_id = state.get("user_id") or ""
+
     try:
         while True:
             user_message = input("\nUser: ").strip()
@@ -25,6 +53,20 @@ def main():
                 continue
 
             state["user_message"] = user_message
+
+            # ── Chargement session depuis Redis (fallback si Redis down → {}) ──
+            session = session_manager.load(user_id)
+            if session.get("last_candidates") and not state.get("last_candidates"):
+                state["last_candidates"] = session["last_candidates"]
+            # weather_context : charger depuis Redis si absent et destination connue
+            dest_hint = (
+                session.get("destination")
+                or (state.get("merged_context") or {}).get("destination")
+            )
+            if dest_hint and not state.get("weather_context"):
+                cached_wx = session_manager.load_weather(dest_hint)
+                if cached_wx:
+                    state["weather_context"] = cached_wx
 
             # ── Streaming du graphe : squelette immédiat, réponse ensuite ──
             start = time.time()
@@ -110,21 +152,37 @@ def main():
                 if key in ("errors", "node_metrics", "conversation_history"):
                     continue
                 state[key] = value
-                
-            
-            # save de history conversation 
+
+            # ── last_candidates : mise à jour si ce tour a produit des recommandations ──
+            new_candidates = extract_last_candidates(result)
+            if new_candidates:
+                state["last_candidates"] = new_candidates
+
+            # ── save de history conversation ──
             state.setdefault("conversation_history", [])
-            
             state["conversation_history"].append({
                 "role":    "user",
                 "content": user_message,
             })
-            
             if final_answer:
                 state["conversation_history"].append({
                     "role": "assistant",
                     "content": final_answer,
                 })
+
+            # ── Persistance session dans Redis ────────────────────────────────
+            dest_now = (result.get("merged_context") or {}).get("destination")
+            session_manager.save(user_id, {
+                "last_candidates":        state.get("last_candidates") or [],
+                "conversation_last_turn": extract_last_turn(result, user_message),
+                "destination":            dest_now,
+                "last_intent":            (result.get("intent_result") or {}).get("primary_intent"),
+                "suggestion_mode":        result.get("suggestion_mode"),
+            })
+            # weather_context sauvé séparément avec TTL 2h
+            wx = result.get("weather_context")
+            if wx and dest_now:
+                session_manager.save_weather(dest_now, wx)
 
     except KeyboardInterrupt:
         print("\nAssistant: À bientôt !")
