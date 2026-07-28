@@ -12,11 +12,13 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from rapidfuzz import fuzz
+
 from app.config.definitions import DAY_PLANNER_CONFIG
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.nodes.utility.json_parser import parse_json_safely
 from app.prompts.recommendation.day_planner_prompt import DAY_PLANNER_PROMPT
-from app.schemas.day_planner_schema import DayPlannerOutput
+from app.schemas.day_planner_schema import ActivityType, DayPlannerOutput
 from app.utils.session_memory import extract_session_signals
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,13 @@ DAY_PLANNER_INTENTS = {"day_planning", "trip_package_recommendation"}
 
 # Nombre max de candidats envoyés au LLM pour limiter les tokens
 MAX_CANDIDATES_TO_LLM = 12
+
+# Types de slot devant obligatoirement être traçables à un candidat réel
+# (item_type "free"/"flight" ne sont jamais issus de RANKED_CANDIDATES)
+_GROUNDED_ITEM_TYPES = {"hotel", "restaurant", "activity"}
+# Seuil rapidfuzz pour rattacher un nom paraphrasé à son candidat d'origine
+# (proche du seuil 75 déjà utilisé pour la dédup SOURCE1/SOURCE2 de activity_node)
+_NAME_MATCH_THRESHOLD = 70
 
 
 class DayPlannerNode(BaseNode):
@@ -125,6 +134,7 @@ class DayPlannerNode(BaseNode):
             raw      = response.get("content", "")
             data     = parse_json_safely(raw)
             output   = DayPlannerOutput(**data)
+            output   = self._reconcile_slot_candidates(output, candidates_for_llm)
 
         except Exception as exc:
             logger.error("DayPlannerNode LLM error: %s", exc, exc_info=True)
@@ -132,6 +142,81 @@ class DayPlannerNode(BaseNode):
             output = self._build_fallback(destination, duration_days)
 
         return {"itinerary": output.model_dump()}
+
+    # ------------------------------------------------------------------
+    # Garde-fou anti-hallucination (déterministe, Python)
+    # ------------------------------------------------------------------
+
+    def _reconcile_slot_candidates(
+        self,
+        output: DayPlannerOutput,
+        candidates_for_llm: List[Dict[str, Any]],
+    ) -> DayPlannerOutput:
+        """
+        Le prompt demande déjà au LLM de copier name/id EXACTEMENT depuis
+        RANKED_CANDIDATES pour les slots hotel/restaurant/activity — mais rien
+        ne garantit qu'il le respecte (ex. observé : "Bazaar Houmt Souk" reformulé
+        en "Marché traditionnel de Houmt Souk" avec candidate_id perdu, cassant
+        toute traçabilité vers le vrai document).
+
+        Garde-fou déterministe, une seule règle un seul endroit responsable
+        (même doctrine que constraint_validator_node pour les exclusions dures) :
+          - candidate_id valide déjà présent → nom réécrit depuis la source de
+            vérité (au cas où le LLM l'aurait quand même reformulé)
+          - candidate_id absent/invalide → tentative de rattachement par nom
+            (rapidfuzz) vers le pool de candidats envoyés au LLM
+          - aucun match suffisant → downgrade en item_type "free" plutôt que de
+            laisser une place non-traçable se faire passer pour un candidat réel
+        """
+        by_id = {str(c["id"]): c for c in candidates_for_llm if c.get("id")}
+        name_pool = [(str(c["id"]), c.get("name") or "") for c in candidates_for_llm if c.get("id")]
+
+        for day in output.days:
+            for slot in day.slots:
+                if slot.item_type not in _GROUNDED_ITEM_TYPES:
+                    continue
+
+                match = by_id.get(str(slot.candidate_id)) if slot.candidate_id else None
+
+                if not match and name_pool:
+                    best_id, best_score = None, 0
+                    for cid, cname in name_pool:
+                        # token_set_ratio plutôt que ratio brut — un LLM paraphrase souvent
+                        # le concept avec des mots différents ("marché" vs "bazaar") en ne
+                        # gardant que l'ancre de lieu commune ("Houmt Souk") ; token_set_ratio
+                        # capture ce chevauchement partiel, ratio brut le rate largement.
+                        score = fuzz.token_set_ratio(slot.name.lower(), cname.lower())
+                        if score > best_score:
+                            best_id, best_score = cid, score
+                    if best_score >= _NAME_MATCH_THRESHOLD:
+                        match = by_id.get(best_id)
+
+                if match:
+                    if slot.name != match.get("name"):
+                        logger.info(
+                            "[DayPlanner] slot reconcilié : '%s' -> '%s' (candidate_id=%s)",
+                            slot.name, match.get("name"), match.get("id"),
+                        )
+                    match_type = match.get("item_type")
+                    if match_type in _GROUNDED_ITEM_TYPES and slot.item_type != match_type:
+                        logger.info(
+                            "[DayPlanner] item_type corrigé pour '%s' : '%s' -> '%s'",
+                            match.get("name"), slot.item_type, match_type,
+                        )
+                        slot.item_type = ActivityType(match_type)
+                    slot.name = match.get("name") or slot.name
+                    slot.candidate_id = str(match.get("id"))
+                    slot.ranked_score = match.get("ranked_score")
+                else:
+                    logger.warning(
+                        "[DayPlanner] slot '%s' (type=%s) non traçable à un candidat -> downgrade en 'free'",
+                        slot.name, slot.item_type,
+                    )
+                    slot.item_type = ActivityType.FREE
+                    slot.candidate_id = None
+                    slot.ranked_score = None
+
+        return output
 
     # ------------------------------------------------------------------
     # Helpers privés
@@ -247,7 +332,12 @@ class DayPlannerNode(BaseNode):
             slim.append({
                 "id"                  : c.get("id"),
                 "name"                : c.get("name"),
-                "item_type"           : c.get("item_type") or c.get("type", "activity"),
+                # "domain" (hotel/restaurant/activity/flight) est le champ réel posé par
+                # data_merger_node — "item_type"/"type" n'existent jamais sur un candidat
+                # brut, ce qui faisait retomber CHAQUE candidat sur le défaut "activity"
+                # (bug trouvé en testant day_planning : un restaurant reçu par le LLM
+                # comme "activity", placé le matin en violation de la règle 7 du prompt).
+                "item_type"           : c.get("domain") or "activity",
                 "location"            : c.get("address") or c.get("location"),
                 "ranked_score"        : c.get("ranked_score"),
                 "rank"                : c.get("rank"),
