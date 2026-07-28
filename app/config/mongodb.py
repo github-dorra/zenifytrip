@@ -38,6 +38,11 @@ def restaurant_collection() -> Collection:
     return get_collection("restaurant_collection")
 
 
+def traveller_profile_collection() -> Collection:
+    """Cache profil voyageur — remplace Redis profile:{traveller_id} (migration 2026-07-28)."""
+    return get_collection("traveller_profile_cache")
+
+
 def ensure_indexes():
     """
     Crée les index nécessaires sur les deux collections.
@@ -78,4 +83,14 @@ def ensure_indexes():
         IndexModel([("price_level", ASCENDING)]),
         IndexModel([("source",      ASCENDING)]),
     ])
+
+    # traveller_profile_cache : cache profil voyageur (remplace Redis).
+    # Index TTL natif sur expires_at — MongoDB supprime le doc une fois expire_at
+    # dépassé (sweep périodique ~60s, équivalent fonctionnel du SETEX Redis).
+    # _id = traveller_id directement -> pas de champ/index dédié nécessaire.
+    profile_cache = traveller_profile_collection()
+    profile_cache.create_indexes([
+        IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=0),
+    ])
+
     logger.info("Index MongoDB créés / vérifiés")
