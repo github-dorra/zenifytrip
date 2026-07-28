@@ -165,9 +165,14 @@ class ProfileBuilderService:
             return fallback, reason
 
         try:
-            fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
-            return_dt = datetime.strptime(return_date_str[:26] + "Z", fmt)
-            return_dt = return_dt.replace(tzinfo=timezone.utc)
+            # fromisoformat (Python 3.11+) gère nativement le suffixe "Z" et une
+            # précision de microsecondes variable/absente — contrairement au strptime
+            # figé sur "%Y-%m-%dT%H:%M:%S.%fZ" ci-avant, qui plantait dès que l'API
+            # renvoyait un format légèrement différent (ex. sans microsecondes),
+            # faisant silencieusement retomber le TTL sur le défaut fixe.
+            return_dt = datetime.fromisoformat(return_date_str)
+            if return_dt.tzinfo is None:
+                return_dt = return_dt.replace(tzinfo=timezone.utc)
 
             now = datetime.now(timezone.utc)
 
