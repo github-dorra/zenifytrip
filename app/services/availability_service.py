@@ -36,6 +36,19 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
+# Texte désignant le pays entier, jamais une ville/région précise — sert à
+# context_merger_node pour éviter de traiter "Tunisie"/"Tunisia" comme une
+# destination résolue quand _match_city_in_text ne reconnaît aucune ville
+# (sinon le fallback "garder le texte brut" du context_merger repasserait
+# silencieusement le nom du pays comme si c'était une destination valide).
+_COUNTRY_LEVEL_DESTINATIONS = {"tunisie", "tunisia"}
+
+
+def is_country_level_destination(text: str) -> bool:
+    """True si le texte désigne le pays entier (pas une ville/région précise)."""
+    return _normalize(text).strip() in _COUNTRY_LEVEL_DESTINATIONS
+
+
 # ─── Niveau 2 — scan texte → ville connue ────────────────────────────────────
 
 def _match_city_in_text(text: str) -> Optional[str]:

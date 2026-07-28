@@ -45,16 +45,23 @@ class ContextMergerNode(BaseNode):
         if new_origin:      merged["origin"]      = new_origin
         if new_destination:
             try:
-                from app.services.availability_service import _match_city_in_text
+                from app.services.availability_service import _match_city_in_text, is_country_level_destination
                 canonical = _match_city_in_text(new_destination)
                 if canonical:
                     parts = [p.strip() for p in canonical.split("/")]
                     input_lower = new_destination.lower().strip()
                     match = next((p for p in parts if p.lower() == input_lower), None)
                     new_destination = match or parts[0]
+                elif is_country_level_destination(new_destination):
+                    # "Tunisie"/"Tunisia" (le pays, pas une ville) — jamais assez
+                    # précis pour agir ; ne PAS retomber sur le texte brut, sinon
+                    # ça saute silencieusement la clarification (bug trouvé en
+                    # testant le mode exploratoire).
+                    new_destination = None
             except Exception:
                 pass
-            merged["destination"] = new_destination
+            if new_destination:
+                merged["destination"] = new_destination
 
         # -----------------------------
         # DESTINATION depuis hôtel profil (L1 adresse dict, L2 nom hôtel)
