@@ -65,8 +65,19 @@ class ContextMergerNode(BaseNode):
                 if canonical:
                     parts = [p.strip() for p in canonical.split("/")]
                     input_lower = new_destination.lower().strip()
-                    match = next((p for p in parts if p.lower() == input_lower), None)
-                    new_destination = match or parts[0]
+                    # Exact match: input IS the canonical city (casing only)
+                    exact = next((p for p in parts if p.lower() == input_lower), None)
+                    if exact:
+                        new_destination = exact
+                    else:
+                        # Alias match: canonical city name appears inside input
+                        # e.g. "Yasmine Hammamet" → "Hammamet"
+                        # Do NOT replace if canonical is an unrelated airport city
+                        # e.g. "Kairouan" must NOT become "Monastir"
+                        alias = next((p for p in parts if p.lower() in input_lower), None)
+                        if alias:
+                            new_destination = alias
+                        # else: keep original city name as-is
                 elif is_country_level_destination(new_destination):
                     # "Tunisie"/"Tunisia" (le pays, pas une ville) — jamais assez
                     # précis pour agir ; ne PAS retomber sur le texte brut, sinon
