@@ -51,8 +51,13 @@ def bootstrap_session(state: GraphState):
 
     user_id = state.get("user_id")
 
+    # user_id absent = USER NATIF anonyme — cas normal (app sans compte)
     if not user_id:
-        return {"errors": [{"node": "session_bootstrap", "error": "Missing user_id"}]}
+        return {
+            "travellerId":    None,
+            "user_type":      "native",
+            "suggestion_mode": "exploratory",
+        }
 
     travellerId = state.get("travellerId")
 

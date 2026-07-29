@@ -4,6 +4,7 @@ Base remplie par le scraper TripAdvisor/SerpAPI par ville tunisienne.
 business_score = 0.2 (enrichissement expérience, pas de commission directe)
 """
 import logging
+import re
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -75,6 +76,7 @@ def _compute_user_score(
     budget_level: Optional[str],
     traveler_type: Optional[str],
     beach_score: float = 0.0,
+    search_score: Optional[float] = None,
 ) -> Tuple[float, List[str]]:
     """
     user_score 0.0→1.0 pour un document MongoDB
@@ -85,6 +87,7 @@ def _compute_user_score(
       [bonus] best_season match                 +0.05
       [bonus] beach boost (si beach_score≥0.7)  +0.05
     Clamped à 1.0 — les bonus poussent les bons candidats sans créer de faux positifs.
+    search_score: Atlas Search score (si disponible) — remplace le calcul keyword manuel
     """
     s: float = 0.0
     criteria: List[str] = []
@@ -95,7 +98,15 @@ def _compute_user_score(
     searchable = name + " " + desc + " " + " ".join(tags)
 
     # Keyword match (0.35)
-    if global_keywords:
+    # Si Atlas Search score disponible : on l'utilise directement (cross-langue)
+    # Sinon : fallback sur substring match basique
+    if search_score is not None:
+        # Normalise : Atlas Search retourne 0→∞, on plafonne à ~5 pour avoir 0→1
+        normalized = min(search_score / 5.0, 1.0)
+        s += round(normalized * 0.35, 4)
+        if normalized > 0.1:
+            criteria.append("atlas_search_match")
+    elif global_keywords:
         matched = [kw for kw in global_keywords if kw.lower() in searchable]
         if matched:
             s += round(min(0.35, len(matched) / len(global_keywords) * 0.35), 4)
@@ -166,6 +177,84 @@ def _build_recommendation_context(doc: Dict[str, Any]) -> str:
     return f"{label} à {dest}" if dest else label
 
 
+def _normalize_keywords(keywords: List[str]) -> str:
+    """
+    Prépare la query string pour Atlas Search.
+    Split camelCase + underscores : 'culturalActivity' → 'cultural activity'
+    Permet au dual-analyzer (lucene.french + lucene.english) de matcher les tags FR.
+    Ex: 'cultural' (EN) → stem 'cultur' ↔ 'culture' (FR tag) → stem 'cultur' → MATCH.
+    """
+    tokens: List[str] = []
+    for kw in keywords:
+        # 1. underscores → espaces : outdoor_activity → outdoor activity
+        kw = kw.replace("_", " ")
+        # 2. camelCase → espaces : culturalActivity → cultural Activity
+        kw = re.sub(r"([a-z])([A-Z])", r"\1 \2", kw)
+        tokens.extend(kw.lower().split())
+    return " ".join(dict.fromkeys(tokens))  # dédupliquer en préservant l'ordre
+
+
+def _build_atlas_search_pipeline(
+    dest_id: str,
+    keywords: List[str],
+    indoor_preference: Optional[bool],
+    traveler_type: Optional[str],
+    max_candidates: int,
+) -> List[Dict[str, Any]]:
+    """
+    Construit la pipeline $search Atlas Search avec dual-analyzer.
+    Index 'activities_search' a deux paths par champ :
+      tags (lucene.french)  : 'culture' → stem 'cultur'
+      tags.en (lucene.english): 'cultural' → stem 'cultur'  ← cross-langue !
+    Les deux clauses should permettent de matcher les keywords EN contre les tags FR.
+    $match (post-search) : destination_id + filtres durs (B-tree index, plus fiable
+    que text operator pour les champs keyword).
+    """
+    # Split camelCase/underscores pour que le dual-analyzer puisse travailler
+    kw_query = _normalize_keywords(keywords) if keywords else "activité"
+
+    compound: Dict[str, Any] = {
+        "should": [
+            # Clause FR : analyse avec lucene.french → matche les tags français
+            {
+                "text": {
+                    "query": kw_query,
+                    "path":  ["tags", "category", "name"],
+                    "fuzzy": {"maxEdits": 1},
+                }
+            },
+            # Clause EN : analyse avec lucene.english → 'cultural'→cultur ↔ 'culture'→cultur
+            {
+                "text": {
+                    "query": kw_query,
+                    "path":  ["tags.en", "category.en", "name.en", "activity_type"],
+                }
+            },
+        ],
+        "minimumShouldMatch": 1,
+    }
+
+    # Filtres durs dans $match APRÈS $search (destination + type + météo + audience)
+    post_match: Dict[str, Any] = {
+        "destination_id": dest_id,
+        "type": {"$in": ["attraction", "tour", "activity"]},
+    }
+    if indoor_preference is not None:
+        post_match["indoor"] = indoor_preference
+    if traveler_type in ("family", "couple"):
+        audience_val = _TRAVELER_TO_AUDIENCE.get(traveler_type)
+        if audience_val:
+            post_match["audience"] = audience_val
+
+    pipeline = [
+        {"$search": {"index": "activities_search", "compound": compound}},
+        {"$addFields": {"search_score": {"$meta": "searchScore"}}},
+        {"$match": post_match},
+        {"$limit": max_candidates * 4},
+    ]
+    return pipeline
+
+
 def get_candidates(
     destination: Optional[str],
     global_keywords: List[str],
@@ -177,8 +266,9 @@ def get_candidates(
 ) -> List[Dict[str, Any]]:
     """
     Retourne les candidats SOURCE 2 depuis MongoDB Atlas.
-    Couche 1 — filtres durs : destination_id + type + indoor (météo) + audience (profil).
-    Couche 2 — scoring : keywords + rating + budget + traveler_type + saison + plage.
+    Couche 1 — $search Atlas Search (french+english, fuzzy) sur destination + keywords.
+    Fallback — filtre classique si Atlas Search indisponible.
+    Couche 2 — scoring : search_score + rating + budget + traveler_type + saison + plage.
     score = 0.7 * user_score + 0.3 * 0.2
     """
     if not destination:
@@ -194,54 +284,54 @@ def get_candidates(
 
     dest_id = destination.lower().strip()
 
-    # ── COUCHE 1 : filtres durs ───────────────────────────────────────
-    mongo_filter: Dict[str, Any] = {
-        "destination_id": dest_id,
-        "type":           {"$in": ["attraction", "tour", "activity"]},
-    }
-
-    # Filtre météo : indoor/outdoor selon signaux weather_node
-    if indoor_preference is not None:
-        mongo_filter["indoor"] = indoor_preference
-
-    # Filtre audience : profil voyageur (souple — ne bloque pas si champ absent)
-    if traveler_type:
-        audience_val = _TRAVELER_TO_AUDIENCE.get(traveler_type)
-        if audience_val:
-            mongo_filter["audience"] = audience_val
-
-    # Filtre optionnel par tags si keywords fournis
-    if global_keywords:
-        kw_lower = [kw.lower() for kw in global_keywords]
-        mongo_filter["$or"] = [
-            {"tags":           {"$in": kw_lower}},
-            {"traveler_types": {"$in": kw_lower}},
-        ]
+    # ── COUCHE 1 : Atlas Search ───────────────────────────────────────
+    raw_docs: List[Dict[str, Any]] = []
+    atlas_available = False
 
     try:
-        cursor = col.find(mongo_filter).sort("rating", -1).limit(max_candidates * 3)
-        raw_docs = list(cursor)
+        pipeline = _build_atlas_search_pipeline(
+            dest_id, global_keywords or [], indoor_preference, traveler_type, max_candidates
+        )
+        raw_docs = list(col.aggregate(pipeline))
+        atlas_available = True
+        logger.info(
+            f"[MongoActivityService] Atlas Search OK | {len(raw_docs)} docs | "
+            f"dest={dest_id} | kw={global_keywords[:4]}"
+        )
     except Exception as e:
-        logger.error(f"[MongoActivityService] query MongoDB: {e}")
-        return []
+        logger.warning(f"[MongoActivityService] Atlas Search indisponible ({e}) — fallback filtre classique")
 
-    if not raw_docs:
-        # Fallback : relâche keywords + audience, garde indoor si disponible
+    # ── FALLBACK : filtre classique si Atlas Search indisponible ─────
+    if not atlas_available:
         fallback_filter: Dict[str, Any] = {
             "destination_id": dest_id,
             "type": {"$in": ["attraction", "tour", "activity"]},
         }
         if indoor_preference is not None:
             fallback_filter["indoor"] = indoor_preference
+        if traveler_type in ("family", "couple"):
+            audience_val = _TRAVELER_TO_AUDIENCE.get(traveler_type)
+            if audience_val:
+                fallback_filter["audience"] = audience_val
+
         try:
-            cursor = (
-                col.find(fallback_filter)
+            raw_docs = list(
+                col.find(fallback_filter).sort("rating", -1).limit(max_candidates)
+            )
+        except Exception as e:
+            logger.error(f"[MongoActivityService] fallback query: {e}")
+            return []
+
+    if not raw_docs:
+        # Dernier recours : destination seule, toutes activités
+        try:
+            raw_docs = list(
+                col.find({"destination_id": dest_id})
                 .sort("rating", -1)
                 .limit(max_candidates)
             )
-            raw_docs = list(cursor)
         except Exception as e:
-            logger.error(f"[MongoActivityService] fallback query: {e}")
+            logger.error(f"[MongoActivityService] final fallback query: {e}")
             return []
 
     candidates: List[Dict[str, Any]] = []
@@ -251,12 +341,15 @@ def get_candidates(
         category = doc.get("category") or ""
 
         # ── COUCHE 2 : scoring ────────────────────────────────────────
-        # activity_type : champ stocké (enrichissement Phase 5) prioritaire sur recalcul
         activity_type = doc.get("activity_type") or _infer_activity_type(tags, category)
         price_eur     = doc.get("price_from_eur")
 
+        # Atlas Search score (None si fallback classique)
+        search_score = doc.get("search_score") if atlas_available else None
+
         user_score, matched_criteria = _compute_user_score(
-            doc, global_keywords or [], budget_level, traveler_type, beach_score
+            doc, global_keywords or [], budget_level, traveler_type, beach_score,
+            search_score=search_score,
         )
         score = round(0.7 * user_score + 0.3 * BUSINESS_SCORE, 4)
 
@@ -282,12 +375,11 @@ def get_candidates(
             "child_price":            0.0,
             "baby_price":             0.0,
             "currency":               "EUR" if price_eur is not None else "TND",
-            # duration_hours mappé depuis le doc stocké (enrichissement Phase 5)
             "duration_hours":         float(doc["duration_hours"]) if doc.get("duration_hours") is not None else None,
             "max_participants":       0,
             "registered_participants": 0,
             "available_spots":        None,
-            "is_available":           None,   # inconnu — MongoDB ne vérifie pas la dispo réelle
+            "is_available":           None,
             "already_booked":         False,
             "has_geospatial_info":    doc.get("lat") is not None and doc.get("lng") is not None,
             "distance_km":            None,
@@ -301,13 +393,14 @@ def get_candidates(
             "semantic_tags":          tags,
             "recommendation_context": _build_recommendation_context(doc),
             "recommendation_reason":  None,
+            "search_score":           round(search_score, 4) if search_score is not None else None,
         })
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
     logger.info(
         f"[MongoActivityService] {len(candidates[:max_candidates])} candidats | "
-        f"destination={destination} | indoor={indoor_preference} | raw_docs={len(raw_docs)}"
+        f"destination={destination} | atlas={atlas_available} | raw_docs={len(raw_docs)}"
     )
     return candidates[:max_candidates]
 
