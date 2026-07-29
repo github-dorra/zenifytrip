@@ -21,7 +21,14 @@ Tests 7/7 PASS — 5 subtypes (weather, booking_info, follow_up_place, session_p
 - Clé AI Studio : projet zenify (gen-lang-client-0242501178)
 - gemini-2.0-flash avait quota=0 → migré vers gemini-3.1-flash-lite (testé OK, provider=gemini natif)
 
+## ✅ Phase 5 (completed — 2026-07-29)
+feedback_logger_node + profile_writer_node + ranking cross-session
+- feedback_logger : mine conversation_history → liked/rejected types (session_memory)
+- profile_writer  : persiste interactions:{traveller_id} Redis TTL 90j, merge cumulatif
+- ranking_node    : lit cross-session Redis → ranked_score=0 pour types rejetés (activity)
+- settings.py     : INTERACTIONS_REDIS_PREFIX + INTERACTIONS_REDIS_TTL_SECONDS
+- Testé 3/3 PASS, commité 9f83736
+
 ## 🚀 Prochaine quête
-- Commit Sprint 1 + Sprint 2 + Gemini migration (attendre "commit" explicite de l'utilisateur)
-- Tester avec vraie clé AI Studio une fois créée
-- Phase 5 mémoire cross-session si utile pour le rapport
+- Phase 6 si nécessaire (agent explicabilité, emotion_intent_agent — voir CLAUDE.md section "new architecture version5")
+- Ou finalisation rapport PFE
