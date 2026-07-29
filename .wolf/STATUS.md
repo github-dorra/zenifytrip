@@ -29,6 +29,14 @@ feedback_logger_node + profile_writer_node + ranking cross-session
 - settings.py     : INTERACTIONS_REDIS_PREFIX + INTERACTIONS_REDIS_TTL_SECONDS
 - Testé 3/3 PASS, commité 9f83736
 
+## ✅ Atlas Search cross-langue (completed — 2026-07-29)
+- `mongodb_activity_service.py` — $in remplacé par $search dual-analyzer (commit 8e92b57)
+- `session_bootstrap.py` — fix USER NATIF (même commit)
+- Index `activities_search` recréé syntax `multi` objet (array syntax FAILED sur M0)
+- `_normalize_keywords()` : camelCase splitting avant query Atlas Search
+- 3/3 tests PASS : cultural/heritage/beach/outdoor → matching cross-langue FR↔EN
+- CLAUDE.md → VERSION 8 ajouté
+
 ## 🚀 Prochaine quête
 - Phase 6 si nécessaire (agent explicabilité, emotion_intent_agent — voir CLAUDE.md section "new architecture version5")
 - Ou finalisation rapport PFE

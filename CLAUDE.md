@@ -1927,6 +1927,74 @@ Verdict global : **les poids de haut niveau sont défendables — les bugs ident
 
 ---
 
+### VERSION 8 — Atlas Search dual-analyzer + matching cross-langue EN→FR (session 2026-07-29)
+
+**Problème résolu** : `semantic_node` produit des keywords camelCase en anglais (`culturalActivity`, `outdoor_activity`, `beachActivities`) mais `activities_collection` stocke des tags en français (`culture`, `patrimoine`, `plein-air`, `plage`). Le filtre `$in` exact retournait **0 match** — tous les candidats MongoDB tombaient en fallback "destination seule" sans scoring sémantique.
+
+**Approche rejetée pendant la session** : `_CAMELCASE_TO_FR` dictionnaire statique → "KEYWORD_MAP → statique, fragile, maintenance infinie ❌". Retenu : MongoDB Atlas Search avec dual-analyzer natif.
+
+#### A. Index Atlas Search `activities_search` recréé (session 2026-07-29)
+
+**Historique des tentatives :**
+
+| Tentative | Définition | Résultat | Cause |
+|---|---|---|---|
+| Précédente (session antérieure) | Array syntax `[{type:string,analyzer:french},{type:string,analyzer:english}]` | ❌ `status=FAILED` (sans message) | Syntax array non supportée sur M0 Atlas |
+| Session 2026-07-29 #1 | `dynamic: true` | ✅ QUERYABLE en 25s | Marche mais standard analyzer sans stemming |
+| Session 2026-07-29 #2 | `multi` object syntax | ✅ QUERYABLE en 25s — définitive | Syntax objet supportée, dual-analyzer opérationnel |
+
+**Méthode de création** : `db.command({"createSearchIndexes": ..., "indexes": [...]})` via pymongo 3.12 — équivalent à `createSearchIndex()` de pymongo 4.6+ mais compatible avec la version installée. L'index précédent (FAILED ou absent) est supprimé par `db.command({"dropSearchIndex": ...})` avant recréation.
+
+**Définition finale** (`dynamic: false`, syntax `multi` objet) :
+
+```json
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name":          {"type":"string","analyzer":"lucene.french","multi":{"en":{"type":"string","analyzer":"lucene.english"}}},
+      "tags":          {"type":"string","analyzer":"lucene.french","multi":{"en":{"type":"string","analyzer":"lucene.english"}}},
+      "category":      {"type":"string","analyzer":"lucene.french","multi":{"en":{"type":"string","analyzer":"lucene.english"}}},
+      "activity_type": {"type":"string","analyzer":"lucene.english"},
+      "description":   {"type":"string","analyzer":"lucene.french"}
+    }
+  }
+}
+```
+
+**Pourquoi ce design fonctionne** :
+- `culture` (tag FR) indexé avec `lucene.french` → stem `cultur`
+- `culturalActivity` → split Python → `"cultural activity"` → token `cultural` avec `lucene.english` → stem `cultur`
+- Les deux stems correspondent → **MATCH cross-langue**
+- `adventure` (EN query) ↔ `aventure` (FR tag) : Levenshtein edit dist = 1 → fuzzy:1 → MATCH
+
+**Monitoring index** : `list(col.aggregate([{"$listSearchIndexes": {}}]))` — retourne `status` + `queryable` + `message`. Disponible en pymongo 3.12 (contrairement à `list_search_indexes()` qui nécessite pymongo 4.6+).
+
+#### B. `mongodb_activity_service.py` — remplacement $in par $search
+
+| Fonction | Avant | Après |
+|---|---|---|
+| `_normalize_keywords(keywords)` | — (inexistant) | Split camelCase (`culturalActivity`→`cultural activity`) + underscores (`outdoor_activity`→`outdoor activity`) + déduplication |
+| `_build_atlas_search_pipeline()` | — (inexistant) | Compound `should` 2 clauses : FR (`tags/category/name` + fuzzy:1) + EN (`tags.en/category.en/activity_type`) ; `$match` post-search pour filtres durs |
+| `get_candidates()` | `col.find({"$or":[{"tags":{"$in":kw_lower}}]})` → 0 match sur keywords EN | Atlas Search → fallback filtre classique → fallback destination seule |
+| `_compute_user_score()` | `keyword_match` substring basique | `atlas_search_match` : score continu normalisé `min(search_score / 5.0, 1.0) × 0.35` |
+
+**Tests validés (3/3 PASS) avant commit :**
+
+| Test | Keywords | Destination | Atlas | $in ancien |
+|---|---|---|---|---|
+| A | `['culturalActivity','heritage']` | monastir | 5 candidats, top `atlas=1.973` | 0 ❌ |
+| B | `['beach','outdoor_activity']` | djerba | 5 candidats, top `atlas=2.590` | 0 ❌ |
+| C | `['culturalActivity']` | monastir (comparaison) | 5 candidats | 0 ❌ |
+
+**Commit** : `8e92b57`
+
+#### C. `session_bootstrap.py` — fix USER NATIF
+
+`user_id` absent retournait `{"errors": [...]}` au lieu de la réponse USER NATIF attendue. Corrigé dans le même commit : retourne `{"travellerId": None, "user_type": "native", "suggestion_mode": "exploratory"}`.
+
+---
+
 ## Bugs Connus / TODO (par priorité)
 1. **`llm_service.py` crash à l'import** — `"Bearer " + os.getenv("OLLAMA_API_KEY")` plante si `OLLAMA_API_KEY` est `None`
 2. **`.env` syntaxe bash** — les lignes `export OLLAMA_API_KEY=...` et `export OLLAMA_BASE_URL=...` utilisent la syntaxe bash, ignorée par python-dotenv
@@ -1939,6 +2007,7 @@ Verdict global : **les poids de haut niveau sont défendables — les bugs ident
 9. ~~**`ranking_node.py` manquant**~~ ✅ Résolu (2026-06-13) — node Python pur, poids 70/30 dans settings.py
 10. ~~**`definitions.py` modèles invalides**~~ ✅ Résolu (2026-06-13) — `llama-3.3-70b-versatile` partout
 11. **`final_response_node.py`** — `return {**state, ...}` viole règle LangGraph + clé `constraints` inexistante
+12. ~~**`session_bootstrap.py` USER NATIF**~~ ✅ Résolu (2026-07-29, commit `8e92b57`) — retournait error dict au lieu de native state
 
 ---
 

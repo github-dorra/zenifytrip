@@ -58,6 +58,7 @@
 - `app/services/hotel_service.py`, `flight_service.py`
 - `app/services/mongo_restaurant_service.py`, `restaurant_service.py`
 - `app/services/activity_service/` — InternalActivityService + MongoActivityService
+  - `mongodb_activity_service.py` — Atlas Search dual-analyzer, `_normalize_keywords()`, 3-level fallback (2026-07-29)
 
 ## Config
 - `app/config/settings.py` — TOUTES les constantes globales (TTL, weights, session params)
