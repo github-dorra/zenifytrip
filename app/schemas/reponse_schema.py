@@ -110,6 +110,31 @@ class ResponseAgentOutput(BaseModel):
             return mapping[v]
         return v if v in allowed else "fallback"
 
+    @field_validator("intent_handled", mode="before")
+    @classmethod
+    def normalize_intent_handled(cls, v):
+        valid = {
+            "greeting", "flight_recommendation", "accommodation_recommendation",
+            "restaurant_recommendation", "activity_recommendation", "day_planning",
+            "trip_package_recommendation", "travel_question", "profile_update",
+            "booking_question", "feedback", "unsupported",
+        }
+        # LLM sometimes returns sub-types of travel_question — map to parent intent
+        subtypes = {
+            "weather": "travel_question",
+            "weather_question": "travel_question",
+            "destination_info": "travel_question",
+            "visa": "travel_question",
+            "currency": "travel_question",
+            "transport": "travel_question",
+            "information": "travel_question",
+        }
+        if v in valid:
+            return v
+        if v in subtypes:
+            return subtypes[v]
+        return "unsupported"
+
     @field_validator("confidence")
     @classmethod
     def clamp_confidence(cls, v):
