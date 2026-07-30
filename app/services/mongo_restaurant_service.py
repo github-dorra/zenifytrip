@@ -253,6 +253,7 @@ class MongoRestaurantService:
         ref_lng:      Optional[float] = None,
         max_results:  int = 15,
         establishment_types: Optional[List[str]] = None,
+        halal_required: bool = False,
     ) -> List[Dict]:
         """
         Recherche restaurants via Atlas Search (index "restaurant_search") :
@@ -274,9 +275,24 @@ class MongoRestaurantService:
             )
             docs = list(col.aggregate(pipeline))
 
+            # Halal : exclure les bars purs (establishment_types ne contient que "bar",
+            # sans "restaurant" ni "cafe"). Les bars avec un type restaurant/cafe (ex.
+            # "Aoussou Café Bar") sont conservés. Docs explicitement halal aussi.
+            if halal_required:
+                docs = [
+                    d for d in docs
+                    if (
+                        "bar" not in (d.get("establishment_types") or [])
+                        or "restaurant" in (d.get("establishment_types") or [])
+                        or "cafe" in (d.get("establishment_types") or [])
+                        or any("halal" in (c or "").lower() for c in (d.get("categories") or []))
+                        or any("halal" in (t or "").lower() for t in (d.get("tags") or []))
+                    )
+                ]
+
             logger.info(
                 f"MongoRestaurantService: destination='{destination}' "
-                f"establishment_types={establishment_types} docs={len(docs)}"
+                f"establishment_types={establishment_types} halal={halal_required} docs={len(docs)}"
             )
 
             if not docs:

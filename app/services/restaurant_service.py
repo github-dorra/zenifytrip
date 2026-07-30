@@ -201,6 +201,7 @@ class RestaurantService(RestaurantServiceA):
         is_family:       bool,
         search_strategy: Dict,
         max_candidates:  int = 10,
+        halal_required:  bool = False,
     ) -> Tuple[List[Dict], Dict]:
         """
         Tier 1 — MongoDB (city + zone + destination).
@@ -228,6 +229,7 @@ class RestaurantService(RestaurantServiceA):
             ref_lng=ref_lng,
             max_results=max_candidates,
             establishment_types=search_strategy.get("establishment_types"),
+            halal_required=halal_required,
         )
         benchmark["mongo_results"] = len(mongo_results)
 

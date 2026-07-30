@@ -182,6 +182,11 @@ class RestaurantNode(BaseNode):
         restaurant_preferences = merged_context.get("restaurant_preferences") or []
         search_keywords = list(dict.fromkeys([*global_keywords, *restaurant_preferences]))
 
+        # Filtre dur halal : détecté sur l'union des keywords + préférences.
+        # Exclut les bars purs (non halal par définition), préserve les docs
+        # avec type restaurant/cafe même s'ils ont aussi "bar" dans leurs types.
+        halal_required = any("halal" in kw.lower() for kw in search_keywords)
+
         suggestion_mode = state.get("suggestion_mode") or "exploratory"
         max_candidates  = 15 if suggestion_mode == "exploratory" else 10
 
@@ -205,6 +210,7 @@ class RestaurantNode(BaseNode):
                 is_family=is_family,
                 search_strategy=search_strategy,
                 max_candidates=max_candidates,
+                halal_required=halal_required,
             )
         except Exception as e:
             self.logger.error(f"RestaurantNode service error: {e}")
