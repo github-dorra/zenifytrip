@@ -1,10 +1,13 @@
-from app.graph.builder import build_graph
-from app.graph.state import build_initial_state
-from app.services.session_manager import SessionManager, _trim_candidates
-from app.config.settings import SESSION_MAX_CANDIDATES, SESSION_MAX_TURN_CHARS
 import json
+import threading
 import time
 import uuid
+
+from app.graph.builder import build_graph
+from app.graph.state import build_initial_state
+from app.services.activity_service.internal_activity_service import InternalActivityService
+from app.services.session_manager import SessionManager, _trim_candidates
+from app.config.settings import SESSION_MAX_CANDIDATES, SESSION_MAX_TURN_CHARS
 
 
 # ── Fonctions utilitaires session ────────────────────────────────────────────
@@ -32,6 +35,14 @@ session_manager = SessionManager()
 
 def main():
     graph = build_graph()
+
+    # Pre-warm cache activités en arrière-plan — élimine le cold cache de 4.5s
+    # sur la 1ère requête; n'affecte pas le démarrage (thread daemon)
+    threading.Thread(
+        target=InternalActivityService.pre_warm_cache,
+        name="activities-prewarm",
+        daemon=True,
+    ).start()
 
     state = build_initial_state(
         user_message   = "",

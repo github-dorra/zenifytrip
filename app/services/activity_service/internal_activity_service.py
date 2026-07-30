@@ -76,6 +76,51 @@ class InternalActivityService:
         return all_bookings
 
     @staticmethod
+    def pre_warm_cache() -> None:
+        """
+        Boot-time pre-warm — à appeler dans un thread daemon au démarrage.
+        Charge bookings_all + tous les activity_{id} en parallèle → cold cache
+        éliminé sur la 1ère requête utilisateur réelle (~4.5s → ~0ms).
+        """
+        logger.info("[InternalActivityService] pre-warm démarré")
+        try:
+            bookings = InternalActivityService.get_all_bookings()
+            if not bookings:
+                logger.info("[InternalActivityService] pre-warm: aucun booking disponible")
+                return
+
+            unique_ids = list({
+                str(b["activityId"])
+                for b in bookings
+                if b.get("activityId") and b.get("status") != "Cancelled"
+            })
+            logger.info(
+                f"[InternalActivityService] pre-warm: {len(unique_ids)} activityIds à charger"
+            )
+
+            fetched = 0
+            n_workers = min(len(unique_ids), 40)
+            with ThreadPoolExecutor(max_workers=n_workers) as pool:
+                future_to_id = {
+                    pool.submit(InternalActivityService.get_activity_by_id, aid): aid
+                    for aid in unique_ids
+                }
+                for fut in as_completed(future_to_id, timeout=60):
+                    aid = future_to_id[fut]
+                    try:
+                        if fut.result():
+                            fetched += 1
+                    except Exception as exc:
+                        logger.warning(f"[InternalActivityService] pre-warm {aid}: {exc}")
+
+            logger.info(
+                f"[InternalActivityService] pre-warm terminé: "
+                f"{fetched}/{len(unique_ids)} activities en cache"
+            )
+        except Exception as e:
+            logger.warning(f"[InternalActivityService] pre-warm échoué (non bloquant): {e}")
+
+    @staticmethod
     def get_activity_by_id(activity_id: str) -> Optional[Dict[str, Any]]:
         """Détail activité /api/activities/{id} — cache 24h par activité."""
         if not activity_id:
