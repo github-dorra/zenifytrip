@@ -264,10 +264,12 @@ class InternalActivityService:
         if not bookings_by_activity:
             return []
 
-        # Fetch toutes les activités en parallèle — évite le N+1 séquentiel
-        # (40 IDs × ~200ms = 8s cumulés sur cache froid → max(200ms) parallèle).
+        # Fetch toutes les activités en parallèle — évite le N+1 séquentiel.
+        # max_workers = nb d'IDs (plafonné à 40) : tous les appels partent
+        # simultanément → cold cache = max(latence_api) au lieu de N × latence_api.
         fetched: Dict[str, Dict[str, Any]] = {}
-        with ThreadPoolExecutor(max_workers=8) as _pool:
+        n_workers = min(len(bookings_by_activity), 40)
+        with ThreadPoolExecutor(max_workers=n_workers) as _pool:
             future_to_id = {
                 _pool.submit(InternalActivityService.get_activity_by_id, aid): aid
                 for aid in bookings_by_activity
