@@ -28,7 +28,8 @@ _PLACE_KW = frozenset({
 _WEATHER_KW = frozenset({
     # Météo directe
     "météo", "meteo", "temperature", "température",
-    "chaud", "froid", "pluie", "pluvieux", "soleil", "vent",
+    "quel temps", "temps qu'il fait", "temps fait-il", "fait-il",
+    "chaud", "froid", "chaleur", "pluie", "pluvieux", "soleil", "vent",
     "nuageux", "beau temps", "climat", "weather",
     # Vêtements / préparation vestimentaire
     "vêtements", "vetements", "habits", "tenue", "imperméable", "impermeable",
