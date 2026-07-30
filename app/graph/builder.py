@@ -45,6 +45,9 @@ INFORMATIVE_INTENTS = {"travel_question", "booking_question"}
 # Intents qui méritent un squelette de journée immédiat avant le pipeline complet
 SKELETON_INTENTS = {"day_planning", "trip_package_recommendation", "activity_recommendation"}
 
+# Intents dont le feedback doit passer par Phase 5 avant réponse
+LEARNING_INTENTS = {"feedback", "profile_update"}
+
 
 def route_after_clarification_checker(state: GraphState) -> str:
     intent_result  = state.get("intent_result") or {}
@@ -67,7 +70,11 @@ def route_after_clarification_checker(state: GraphState) -> str:
     if primary_intent == "booking_question":
         return "information_node"
 
-    # profile_update, feedback → réponse directe (pas de pipeline)
+    # feedback / profile_update → Phase 5 d'abord (apprentissage), puis réponse
+    if primary_intent in LEARNING_INTENTS:
+        return "feedback_path"
+
+    # Autres intents non-recommandation → réponse directe
     if primary_intent not in RECOMMENDATION_INTENTS:
         return "final_response"
 
@@ -85,6 +92,17 @@ def route_after_weather_node(state: GraphState) -> str:
     if primary_intent in INFORMATIVE_INTENTS:
         return "information_node"
     return "semantic_node"
+
+
+def route_after_profile_writer(state: GraphState) -> str:
+    """
+    Après profile_writer :
+    - chemin recommandation (final_answer posé par recommendation_response) → END
+    - chemin feedback/profile_update (aucune réponse encore) → final_response
+    """
+    if state.get("final_answer"):
+        return "__end__"
+    return "final_response"
 
 
 def route_after_orchestrator(state: GraphState) -> Union[str, List[str]]:
@@ -177,6 +195,7 @@ def build_graph():
             "weather_only":     "weather_node",     # travel_question météo : weather direct
             "information_node": "information_node",
             "final_response":   "final_response",
+            "feedback_path":    "feedback_logger",  # feedback/profile_update → Phase 5
         },
     )
     graph.add_edge("day_skeleton",       "weather_node")
@@ -221,9 +240,17 @@ def build_graph():
 
     # ── PHASE 5 — après recommendation_response ───────────────────────────────
     # recommendation_response → feedback_logger → profile_writer → END
+    # feedback/profile_update  → feedback_logger → profile_writer → final_response → END
     graph.add_edge("recommendation_response", "feedback_logger")
     graph.add_edge("feedback_logger",         "profile_writer")
-    graph.add_edge("profile_writer",          END)
+    graph.add_conditional_edges(
+        "profile_writer",
+        route_after_profile_writer,
+        {
+            "final_response": "final_response",  # chemin feedback : réponse à l'utilisateur
+            "__end__":        END,               # chemin recommandation : déjà répondu
+        },
+    )
 
     # final_response (Agent 1) → END directement (pas de recommandation = pas de feedback)
     graph.add_edge("final_response", END)
