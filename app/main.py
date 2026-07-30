@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 import uuid
@@ -130,30 +131,31 @@ def main():
                 else:
                     print("\nAssistant:", final_answer)
                             
-            print("\n================ DEBUG CONTEXT ================\n")
+            if os.getenv("DEBUG_MODE") == "true":
+                print("\n================ DEBUG CONTEXT ================\n")
 
-            debug_fields = [
-                "profile_data",
-                "intent_result",
-                "conversation_context",
-                "weather",
-                "merged_candidates",
-                "ranked_candidates",
-                "day_plan",
-            ]
+                debug_fields = [
+                    "profile_data",
+                    "intent_result",
+                    "conversation_context",
+                    "weather",
+                    "merged_candidates",
+                    "ranked_candidates",
+                    "day_plan",
+                ]
 
-            for field in debug_fields:
-                if field not in result:
-                    continue
+                for field in debug_fields:
+                    if field not in result:
+                        continue
 
-                print(f"\n######## {field} ########")
+                    print(f"\n######## {field} ########")
 
-                try:
-                    print(json.dumps(result[field], indent=2, ensure_ascii=False))
-                except TypeError:
-                    print(result[field])
+                    try:
+                        print(json.dumps(result[field], indent=2, ensure_ascii=False))
+                    except TypeError:
+                        print(result[field])
 
-            print("\n===============================================\n")
+                print("\n===============================================\n")
             
             
             
