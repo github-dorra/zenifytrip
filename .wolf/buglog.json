@@ -5,5 +5,44 @@
     "root_cause": "route_after_clarification_checker traitait tous les non-RECOMMENDATION_INTENTS de la même façon (→ final_response), sans chemin dédié pour travel_question",
     "fix": "Ajout de INFORMATIVE_INTENTS = {travel_question, booking_question} + route → information_node dans builder.py",
     "tags": ["routing", "builder", "travel_question", "informative_pipeline"]
+  },
+  {
+    "date": "2026-07-30",
+    "error_message": "activity_node prend ~9.5s sur cache froid",
+    "root_cause": "N+1 HTTP séquentiel dans InternalActivityService.get_candidates() : après 1 appel GET /api/bookings (141 entrées, 1 requête paginée), la boucle appelle get_activity_by_id() pour chaque activityId unique — appels séquentiels synchrones (requests.get) dans le thread. Avec ~40 activityIds uniques × ~150-200ms/requête = 6-8s cumulés. Le cache par clé 'activity_{id}' résout le problème au 2e appel (retour <50ms), mais le 1er appel (cache froid ou TTL expiré 24h) est systématiquement lent. FETCH_TIMEOUT_S=15 dans activity_node masque le vrai coût en laissant les deux sources s'exécuter en parallèle — SOURCE 2 (MongoDB Atlas Search) termine en ~1s, SOURCE 1 (InternalActivityService) détermine la latence totale.",
+    "fix": "NE PAS CORRIGER MAINTENANT — performance acceptable sur cache chaud (1er appel/24h seulement). Fix futur documenté dans fix_options.",
+    "fix_options": [
+      {
+        "option": "A — Parallélisation intra-source1 (effort faible, recommandée)",
+        "description": "Remplacer la boucle séquentielle for activity_id in bookings_by_activity par ThreadPoolExecutor(max_workers=8) sur get_activity_by_id(). 40×200ms séquentiels → max(200ms) parallèle. Ne change aucun contrat d'interface.",
+        "files": ["app/services/activity_service/internal_activity_service.py — get_candidates() ligne 268"],
+        "estimated_gain": "cold: 9.5s → ~1.5s",
+        "risk": "Faible — GET idempotents, cache intégré par clé"
+      },
+      {
+        "option": "B — Cache agrégé pre-warm (effort moyen, optimal)",
+        "description": "Quand get_all_bookings() charge ses 141 bookings, résoudre immédiatement tous les activityIds en parallèle et stocker un dict 'activities_enriched_all' (TTL 24h). Appels suivants : retour dict sans aucune requête API.",
+        "files": ["app/services/activity_service/internal_activity_service.py — get_all_bookings() ou nouveau get_all_activities_enriched()"],
+        "estimated_gain": "cold: 9.5s → ~0.3s",
+        "risk": "Moyen — augmente charge initiale (40 req parallèles au 1er boot)"
+      },
+      {
+        "option": "C — Endpoint agrégé staging (long-term, dépend backend)",
+        "description": "GET /api/activities?activityIds=id1,id2,... pour éviter le N+1 côté API. Bloqué tant que staging ne supporte pas ce pattern.",
+        "files": ["app/services/activity_service/internal_activity_service.py — get_candidates()"],
+        "estimated_gain": "Elimination totale du N+1",
+        "risk": "Dépendance externe hors contrôle"
+      }
+    ],
+    "impact_utilisateur": "Cache froid (1×/24h) : ~9.5s. Cache chaud (cas normal) : <0.5s — pas d'impact visible en usage quotidien.",
+    "why_not_now": "Le cache chaud couvre 99% des requêtes réelles. La priorité v1 était la fiabilité fonctionnelle, pas la perf sur le 1er appel.",
+    "tags": ["performance", "activity_node", "n+1", "internal_api", "cache", "threading", "InternalActivityService"]
+  },
+  {
+    "date": "2026-07-30",
+    "error_message": "travel_question météo ('Quel temps fait-il ?') routait vers information_node au lieu de weather_node",
+    "root_cause": "route_after_clarification_checker compare msg.lower() aux mots-clés de _WEATHER_KW (information_node.py). Le mot 'temps' (absent du frozenset) est la formulation française la plus courante pour parler de météo. Le frozenset contenait 'météo', 'temperature', 'chaud', etc. mais pas 'quel temps' — la question la plus naturelle passait silencieusement en information_node, répondant avec les connaissances LLM au lieu de l'API OpenWeather.",
+    "fix": "Ajout de 'quel temps', 'temps qu\\'il fait', 'temps fait-il' dans _WEATHER_KW (information_node.py). 'temps' seul n\\'a pas été ajouté car le mot signifie aussi 'temps qui passe' en français.",
+    "tags": ["routing", "weather", "_WEATHER_KW", "information_node", "travel_question", "fr-language"]
   }
 ]

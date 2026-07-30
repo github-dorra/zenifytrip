@@ -8,6 +8,7 @@ from app.config.settings import (
     AVAILABILITY_UNKNOWN_FACTOR_PROTECTED,
     AVAILABILITY_UNKNOWN_FACTOR_OPEN,
     INTERACTIONS_REDIS_PREFIX,
+    CROSS_SESSION_LIKED_BOOST,
 )
 
 try:
@@ -35,24 +36,28 @@ class RankingNode(BaseNode):
         super().__init__(NodeConfig(name="ranking", node_type="technical"))
 
     # ─────────────────────────────────────────────────────────────────
-    def _load_cross_session_rejected(self, state: Dict[str, Any]) -> Set[str]:
-        """Lit les types rejetés cross-session depuis Redis. Retourne set vide si indisponible."""
+    def _load_cross_session_data(self, state: Dict[str, Any]) -> Dict[str, Set[str]]:
+        """Lit rejected_types ET liked_types cross-session depuis Redis."""
+        empty: Dict[str, Set[str]] = {"rejected": set(), "liked": set()}
         if not _redis:
-            return set()
+            return empty
         traveller_id = (
             state.get("travellerId")
             or (state.get("profile_data") or {}).get("id")
         )
         if not traveller_id:
-            return set()
+            return empty
         try:
             raw = _redis.get(f"{INTERACTIONS_REDIS_PREFIX}{traveller_id}")
             if raw:
                 data = json.loads(raw)
-                return set(data.get("rejected_types", []))
+                return {
+                    "rejected": set(data.get("rejected_types", [])),
+                    "liked":    set(data.get("liked_types",    [])),
+                }
         except Exception:
             pass
-        return set()
+        return empty
 
     # ─────────────────────────────────────────────────────────────────
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -64,9 +69,14 @@ class RankingNode(BaseNode):
             return {"ranked_results": [], "total_ranked": 0}
 
         # ── Signaux cross-session (Phase 5) ─────────────────────────────
-        cross_session_rejected = self._load_cross_session_rejected(state)
-        if cross_session_rejected:
-            self.logger.info(f"[Ranking] cross-session rejected types: {cross_session_rejected}")
+        cross_session          = self._load_cross_session_data(state)
+        cross_session_rejected = cross_session["rejected"]
+        cross_session_liked    = cross_session["liked"]
+        if cross_session_rejected or cross_session_liked:
+            self.logger.info(
+                f"[Ranking] cross-session rejected={cross_session_rejected} "
+                f"liked={cross_session_liked}"
+            )
 
         # ── Pré-passe : facteur dynamique pour dispo inconnue ────────────
         # Force du meilleur candidat CONFIRMÉ (is_available=True — uniquement SOURCE 1 agence)
@@ -98,6 +108,17 @@ class RankingNode(BaseNode):
                     continue
 
             user_score     = self._user_score(candidate)
+
+            # Boost soft cross-session : types aimés dans les sessions précédentes.
+            # user_score > 0 obligatoire — un candidat non pertinent sur la requête
+            # courante ne remonte jamais (invariant V2 multiplicatif préservé).
+            # La requête courante reste prioritaire : un score explicite de 0.8
+            # bat toujours un score boosted de 0.4 × 1.15 = 0.46.
+            if cross_session_liked and user_score > 0:
+                activity_type = candidate.get("activity_type", "")
+                if activity_type and activity_type in cross_session_liked:
+                    user_score = min(1.0, user_score * CROSS_SESSION_LIKED_BOOST)
+
             business_score = self._business_score(candidate)
             # True=confirmé ×1.0 | None=inconnu ×unknown_factor | False exclu en amont (constraint_validator)
             # Domaines sans champ is_available (hotel, flight, restaurant) → ×1.0 neutre

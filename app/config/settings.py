@@ -75,6 +75,7 @@ REDIS_ENV = os.getenv("REDIS_ENV", "dev")        # dev | staging | prod — à d
 # Phase 5 — mémoire cross-session des préférences utilisateur
 INTERACTIONS_REDIS_PREFIX      = "interactions:"   # clé = interactions:{traveller_id}
 INTERACTIONS_REDIS_TTL_SECONDS = int(os.getenv("INTERACTIONS_REDIS_TTL_SECONDS", str(30 * 24 * 3600)))  # 30 jours
+CROSS_SESSION_LIKED_BOOST      = float(os.getenv("CROSS_SESSION_LIKED_BOOST",      "1.15"))  # ×user_score pour types aimés cross-session
 
 # TTL CACHE PROFILE IN REDIS
 # Voyage futur  : TTL = (returnDate - now) + EXTRA  (max MAX_TTL)
