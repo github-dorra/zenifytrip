@@ -123,47 +123,45 @@ def build_graph():
     graph = StateGraph(GraphState)
 
     # ── PHASE 1 : COMPRÉHENSION ───────────────────────────────────────────────
-    graph.add_node("greeting",              GreetingNode())
-    graph.add_node("session_bootstrap",     bootstrap_session)
-    graph.add_node("intent_classifier",     IntentClassifierNode())
-    graph.add_node("profile_loader",        ProfileLoaderNode())
-    graph.add_node("availability_checker",  AvailabilityCheckerNode())
-    graph.add_node("context_merge",         ContextMergerNode())
-    graph.add_node("clarification_checker", ClarificationCheckerNode())
+    # fan-out : greeting + session_bootstrap en parallèle, puis intent + profile en parallèle
+    graph.add_node("greeting",              GreetingNode())              # [tech] normalise message (strip/lower)
+    graph.add_node("session_bootstrap",     bootstrap_session)           # [tech] API interne → travellerId, user_type, suggestion_mode
+    graph.add_node("intent_classifier",     IntentClassifierNode())      # [LLM]  Gemini 2.0 Flash — classifie intent + extrait contraintes JSON
+    graph.add_node("profile_loader",        ProfileLoaderNode())         # [tech] MongoDB cache (TTL 30j) ou API agence → profil complet
+    graph.add_node("context_merge",         ContextMergerNode())         # [tech] fusionne intent_result + profile_data → merged_context
+    graph.add_node("availability_checker",  AvailabilityCheckerNode())   # [tech] API interne → trip_position, booking_anchors, destination L1/L2/L3
+    graph.add_node("clarification_checker", ClarificationCheckerNode())  # [tech] rule-based → champs manquants, suggestion_mode, next_action
 
     # ── PHASE 2 : ENRICHISSEMENT CONTEXTE ────────────────────────────────────
-    graph.add_node("weather_node",  WeatherNode())
-    graph.add_node("semantic_node", SemanticAgentNode())
+    graph.add_node("day_skeleton", DaySkeletonNode())    # [tech] squelette Python pur <10ms — streamé immédiatement (SKELETON_INTENTS uniquement)
+    graph.add_node("weather_node", WeatherNode())        # [tech] API OpenWeather → weather_context (météo/saison/baignade ou pipeline complet)
+    graph.add_node("semantic_node", SemanticAgentNode()) # [LLM]  Gemini 2.0 Flash — extrait semantic_keywords + tags depuis merged_context
 
     # ── PHASE 3 : ORCHESTRATION ───────────────────────────────────────────────
-    graph.add_node("orchestrator", OrchestratorNode())
+    graph.add_node("orchestrator", OrchestratorNode())   # [tech] Python pur (SANS LLM) — mappe primary_intent → requested_services
 
-    # ── PHASE 4 : RECOMMANDATION (domaines) ──────────────────────────────────
-    graph.add_node("hotel_node",      HotelNode())
-    graph.add_node("flight_node",     FlightNode())
-    graph.add_node("restaurant_node", RestaurantNode())
-    graph.add_node("activity_node",   ActivityNode())
+    # ── PHASE 4 : DOMAINES — fan-out conditionnel ────────────────────────────
+    graph.add_node("hotel_node",      HotelNode())        # [tech] API interne Tier1 (hotel-services) + Tier2 (catalogue 746 hôtels), haversine
+    graph.add_node("flight_node",     FlightNode())       # [tech] API interne 272 vols + enrichissement destination (tunisia_destinations)
+    graph.add_node("restaurant_node", RestaurantNode())   # [tech] MongoDB Atlas Search Tier1 (26 575 docs) + SerpApi Tier2 fallback
+    graph.add_node("activity_node",   ActivityNode())     # [tech] API interne + MongoDB Atlas (ThreadPoolExecutor, rapidfuzz dedup ≥75)
 
     # ── PHASE 4 : POST-PROCESSING ─────────────────────────────────────────────
-    graph.add_node("data_merger",          DataMergerNode())
-    graph.add_node("constraint_validator", ConstraintValidatorNode())
-    graph.add_node("ranking_node",         RankingNode())
-    graph.add_node("day_planner", DayPlannerNode())
-    graph.add_node("day_skeleton", DaySkeletonNode())
+    graph.add_node("data_merger",          DataMergerNode())          # [tech] fusionne les 4 listes → candidates (priorité par intent)
+    graph.add_node("constraint_validator", ConstraintValidatorNode()) # [tech] filtre dur — seul point d'exclusion : is_available=False
+    graph.add_node("ranking_node",         RankingNode())             # [tech] scoring V2 multiplicatif : user_score × business_boost × avail_factor
+    graph.add_node("day_planner",          DayPlannerNode())          # [LLM]  Gemini 2.0 Flash — itinéraire contextualisé (anchors, trip_position, météo)
 
-    # ── PIPELINE INFORMATIF ───────────────────────────────────────────────────
-    # travel_question / booking_question → context enrichi → final_response (Agent 1)
-    graph.add_node("information_node",            InformationNode())
+    # ── PIPELINE INFORMATIF (travel_question / booking_question) ─────────────
+    graph.add_node("information_node", InformationNode())  # [tech] rule-based → subtype détecté, resolved_data assemblé (0 LLM)
 
-    # ── RÉPONSE — 2 agents distincts ──────────────────────────────────────────
-    # Agent 1 : clarification / conversations / pipeline informatif
-    graph.add_node("final_response",             FinalResponseNode())
-    # Agent 2 : présentation des recommandations réelles (chemin data_merger)
-    graph.add_node("recommendation_response",    RecommendationResponseNode())
+    # ── RÉPONSE — 2 agents LLM distincts selon le chemin ─────────────────────
+    graph.add_node("final_response",          FinalResponseNode())          # [LLM]  Gemini 2.0 Flash — Agent 1 : clarification / info / greeting
+    graph.add_node("recommendation_response", RecommendationResponseNode()) # [LLM]  Gemini 2.0 Flash — Agent 2 : présentation ranked_results
 
     # ── PHASE 5 : APPRENTISSAGE ───────────────────────────────────────────────
-    graph.add_node("feedback_logger",  FeedbackLoggerNode())
-    graph.add_node("profile_writer",   ProfileWriterNode())
+    graph.add_node("feedback_logger", FeedbackLoggerNode()) # [tech] mine liked/rejected depuis conversation_history (session_memory.py)
+    graph.add_node("profile_writer",  ProfileWriterNode())  # [tech] persiste préférences cross-session dans Redis (TTL 30j)
     
     
     
