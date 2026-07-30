@@ -42,6 +42,9 @@ RECOMMENDATION_INTENTS = {
 # Intents routés vers le pipeline informatif (information_node → final_response)
 INFORMATIVE_INTENTS = {"travel_question", "booking_question"}
 
+# Intents qui méritent un squelette de journée immédiat avant le pipeline complet
+SKELETON_INTENTS = {"day_planning", "trip_package_recommendation", "activity_recommendation"}
+
 
 def route_after_clarification_checker(state: GraphState) -> str:
     intent_result  = state.get("intent_result") or {}
@@ -69,7 +72,10 @@ def route_after_clarification_checker(state: GraphState) -> str:
         return "final_response"
 
     # Pipeline recommandation complet
-    return "weather_node"
+    # day_skeleton uniquement pour les intents de planification/activités
+    if primary_intent in SKELETON_INTENTS:
+        return "day_skeleton"
+    return "weather_direct"
 
 
 def route_after_weather_node(state: GraphState) -> str:
@@ -166,9 +172,10 @@ def build_graph():
         "clarification_checker",
         route_after_clarification_checker,
         {
-            "weather_node":     "day_skeleton",     # recommendation : skeleton immédiat, puis pipeline
-            "weather_only":     "weather_node",     # travel_question : weather direct, sans skeleton
-            "information_node": "information_node", # booking_question et autres informatifs
+            "day_skeleton":     "day_skeleton",     # planning/activités : skeleton immédiat
+            "weather_direct":   "weather_node",     # autres recommandations : weather direct
+            "weather_only":     "weather_node",     # travel_question météo : weather direct
+            "information_node": "information_node",
             "final_response":   "final_response",
         },
     )
