@@ -3236,3 +3236,244 @@ Aucune API existante ne fournit :
 - Un champ `authenticity_score` distinguant les activités de guide touristique des expériences locales
 
 Cette couche sémantique est le **produit original du projet** — elle est ce qui permet au `day_planner_node` de raisonner sur "il fait chaud cet après-midi, l'utilisateur a un bébé, quel slot intérieur est disponible à Sousse ?" en un seul filtre MongoDB, sans appel LLM supplémentaire.
+
+---
+
+## Guide Rapport PFE — Structure, Contenu et Sources
+
+> **Source de vérité principale :** `.wolf/pfe_academic_material.md` — 10 décisions architecturales (DA-01→DA-10), métriques mesurées, 8 innovations, choix tech, pipeline données, limites, angles morts concurrents. Tout ce fichier est directement réutilisable dans le rapport.
+>
+> **Règle d'or :** ne jamais écrire un chiffre sans source mesurée. Tous les chiffres cités dans ce guide ont leur source dans les sections CLAUDE.md ou dans `pfe_academic_material.md`.
+
+---
+
+### Structure Recommandée du Rapport (7 chapitres)
+
+#### CHAPITRE 1 — Introduction Générale
+
+**À rédiger entièrement.**
+
+Contenu attendu :
+- Contexte : essor du tourisme en Tunisie + digitalisation des agences de voyage
+- Problématique : comment une agence de taille moyenne peut-elle proposer des recommandations personnalisées sans budget data science dédié ?
+- Objectif du projet : système de recommandation conversationnel multi-agents, intégré comme chatbot dans l'application de l'agence ZenifyTrip
+- Annonce du plan
+
+**Arguments d'accroche :**
+- Le voyageur moderne attend une personnalisation instantanée (style Netflix, Amazon) — les outils généralistes (ChatGPT, Gemini) ne connaissent pas le catalogue de l'agence ni le dossier du voyageur
+- Le PFE répond à un besoin commercial réel d'une agence existante — pas un système académique fictif
+
+---
+
+#### CHAPITRE 2 — Présentation de l'Organisme d'Accueil
+
+**À rédiger entièrement** (données internes ZenifyTrip — non disponibles dans CLAUDE.md).
+
+Contenu attendu :
+- Présentation de l'agence ZenifyTrip (historique, activités, marché)
+- Contexte du stage : mission, durée, équipe
+- Environnement technique existant avant le projet (application, APIs internes)
+- Problème identifié et besoin exprimé
+
+---
+
+#### CHAPITRE 3 — État de l'Art et Étude de l'Existant
+
+**Sources documentées dans CLAUDE.md :**
+- Section `etude_de_existant_by_claude_code` → tableau des 9 acteurs (Expedia/Romie, Mindtrip, Kayak, TripAdvisor, Booking.com, Google Travel, Hopper, Layla AI, GuideGeek)
+- Section `new architecture version5 by claude code` → synthèse comparative et angles morts
+- `pfe_academic_material.md` §8 → tableau "Angles morts exploitables"
+
+**Ce qui est documenté et exploitable directement :**
+- 9 concurrents analysés — 2 vérifiés adversarialement (Expedia/Romie ✅, Mindtrip ✅)
+- 5 patterns récurrents du marché (hybridation données+LLM, paiement in-chat, mémoire longitudinale, RAG sur données propriétaires, multi-canal)
+- 7 angles morts exploitables par ZenifyTrip (aucun acteur ne documente un scoring commercial transparent, aucun ne communique sur l'orchestration multi-agents)
+
+**Honnêteté académique obligatoire :**
+- Indiquer explicitement que 5 acteurs sur 9 ont leur architecture IA opaque — l'absence de source publique est elle-même une observation valide (documenter l'opacité du marché)
+
+**Systèmes de recommandation — théorie :**
+- Content-Based Filtering (profil utilisateur × attributs item)
+- Collaborative Filtering (similarité inter-utilisateurs) — préparé dans le projet (`cf_scorer.py`) mais non actif faute de volume de données
+- Hybrid systems — approche retenue dans ZenifyTrip
+- Systèmes conversationnels (LLM + RAG) — tendance 2023-2026
+
+---
+
+#### CHAPITRE 4 — Analyse et Conception de l'Architecture
+
+**Sources documentées dans CLAUDE.md :**
+- Section `Architecture : Graphe LangGraph` → VERSION 1 à VERSION 8 avec topologies
+- Section `Pipeline Détaillé — 17 Étapes` → tableau phases 1→5
+- Section `Deux Types d'Utilisateurs` + `3 Modes de Recommandation`
+- `pfe_academic_material.md` §4 → CT-01 à CT-06 (justifications choix technologiques)
+- `pfe_academic_material.md` §1 → DA-01 à DA-10 (décisions architecturales)
+
+**Points-clés à développer :**
+
+1. **Architecture en 4 couches** (Collecte → Services → Validation Pydantic → Graphe LangGraph)
+2. **GraphState TypedDict** comme source unique de vérité entre nodes (pattern Actor Model)
+3. **Règle critique LangGraph** : nodes de convergence au même niveau de profondeur (bug double-exécution documenté en VERSION 3)
+4. **Deux agents de réponse distincts** : Agent 1 (clarification/info) ≠ Agent 2 (présentation recommandations)
+5. **Scoring V2 multiplicatif** — formule complète à schématiser : `ranked_score = user_score × business_boost × availability_factor`
+6. **Disponibilité tri-state** : `True` / `False` / `None` — contrat entre sources et ranking (IN-08)
+
+**Diagrammes à produire :**
+- Topologie finale du graphe (VERSION 8 — 19 nodes avec couleurs par type : bleu=LLM, vert=tech, orange=API, violet=mémoire)
+- Schéma de la formule de scoring V2
+- Diagramme de séquence : message utilisateur → réponse (timing de chaque node)
+
+---
+
+#### CHAPITRE 5 — Préparation des Bases de Connaissances
+
+**Sources documentées dans CLAUDE.md :**
+- Section `La préparation de pré-traitement de "restaurant_collection"` → sources, outils, pipeline, audit, chiffres
+- Section `Préparation et Pré-traitement de la Collection activities_collection` → 7 phases, 12 sous-sections dont argumentation soutenance
+- `pfe_academic_material.md` §5 → tableaux récapitulatifs prêts à copier
+
+**Chiffres clés à citer (tous mesurés) :**
+
+| Collection | Volume | GPS | Champs 100% |
+|---|---|---|---|
+| `restaurant_collection` | 26 575 docs, 67 villes | 63,5% | `establishment_types`, `name`, `city` |
+| `activities_collection` | 2 345 docs, 69 destinations | 99,9% | `best_season`, `audience`, `budget_level`, `indoor`, `duration_hours` |
+
+**Contribution originale à valoriser :**
+- L'enrichissement sémantique rule-based de `activities_collection` (100% de couverture, 30s, 0 token LLM) n'est pas un pis-aller — c'est le pattern standard pour les classifications à vocabulaire contrôlé
+- Atlas Search dual-analyzer (DA-04) : matching cross-langue sans dictionnaire statique — généralise à tout nouveau keyword LLM sans modification de code
+- Le benchmark restaurant A/B/C (DA-01) : approche scientifique documentée avec métriques objectives (taux d'hallucination 46% mesuré manuellement sur 12 restaurants, 3 sources indépendantes vérifiées)
+
+---
+
+#### CHAPITRE 6 — Réalisation et Implémentation
+
+**Sources documentées dans CLAUDE.md :**
+- Sections `VERSION 1` à `VERSION 8` → évolution itérative documentée avec bugs corrigés
+- Section `Démarche de Création d'un Agent` → processus en 6 étapes suivi pour chaque node
+- Section `Format Standard des Prompts d'Agent`
+- Section `Performance — Réduction Temps de Réponse`
+- `pfe_academic_material.md` §3 → IN-01 à IN-08 (innovations)
+
+**Sous-sections suggérées :**
+
+**6.1 Implémentation du graphe LangGraph**
+- Pattern BaseNode ABC (héritage, `run()`, try/except obligatoire, retour minimal)
+- Règle de centralisation `settings.py` (valeurs critiques configurables sans redéploiement)
+- Fan-out parallèle : `intent_classifier` ‖ `profile_loader` (gain mesurable vs séquentiel)
+
+**6.2 Module restaurant — benchmark et décision architecturale**
+→ DA-01 : résultats benchmark tableau complet, vérification manuelle hallucinations
+
+**6.3 Module activités — architecture two-source**
+→ SOURCE 1 (API interne, `business_score=0.8`) + SOURCE 2 (MongoDB Atlas, `business_score=0.2`)
+→ ThreadPoolExecutor, déduplication rapidfuzz ≥ 75, Atlas Search dual-analyzer (DA-04)
+
+**6.4 Day Planner contextuel (VERSION 6)**
+→ `trip_position` + `booking_anchors` + `day_skeleton` streaming
+→ Démontrer la différence avant/après : avec ancres vs sans ancres (exemple All Inclusive)
+
+**6.5 Scoring V2 multiplicatif**
+→ Formule, justification (invariant `user_score=0 → ranked=0`), poids configurables
+→ Boost cross-session `liked_types` (×1.15, uniquement si `user_score > 0`)
+
+**6.6 Phase 5 — Mémoire et Apprentissage**
+→ `session_memory.py` : mining implicite des rejets (fenêtre < 5 mots, neutralisateurs)
+→ `profile_writer_node` → Redis `interactions:{traveller_id}` TTL 30j
+
+---
+
+#### CHAPITRE 7 — Tests, Validation et Résultats
+
+**Sources documentées dans CLAUDE.md :**
+- Section `VERSION 7 — Validation end-to-end réelle` → méthodologie + 9 bugs de production
+- Sections `VERSION 1` à `VERSION 6` → résultats de tests successifs
+- `pfe_academic_material.md` §7 → argument méthodologique réutilisable
+
+**Métriques de validation à présenter :**
+
+| Phase | Test | Résultat |
+|---|---|---|
+| VERSION 1 (2026-05-24) | 7 scénarios | 7/7 PASS, `errors: []` |
+| VERSION 3 (2026-06-13) | 3 scénarios activity + day_planning | 3/3 PASS, 15/15 checks |
+| VERSION 6 (2026-07-08) | 8 scénarios E2E complets | 8/8 PASS, 28/28 assertions |
+| VERSION 7 (2026-07-28) | Production réelle (vrai LLM, vrai MongoDB, vraies APIs) | 9 bugs détectés et corrigés |
+
+**Argument méthodologique fort (§7 pfe_academic_material.md) :**
+> La revue de code seule n'aurait détecté aucun des 9 bugs de production de VERSION 7. Tous nécessitaient une exécution réelle du graphe complet, avec de vraies données, sur des requêtes formulées comme un vrai voyageur les écrirait.
+
+**9 bugs de production catégorisés :**
+- B1 : `restaurant_node` — filtre créneau horaire absent, `restaurant_preferences` ignorées
+- B2 : Modèle Groq mort (404) — panne silencieuse masquée par `try/except`
+- B3 : Migration Groq → Gemini + fallback automatique
+- B4 : Migration cache profil Redis → MongoDB Atlas
+- B5 : `day_planner_node` — `domain` lu au lieu de `item_type`
+- B6 : TTL profil — `strptime` figé → `datetime.fromisoformat()`
+- B7+B8 : Destination "Tunisie" → faux positif substring / `is_country_level_destination()`
+- B9 : `suggestion_mode="exploratory"` mathématiquement inatteignable pour `recommendation`
+
+---
+
+#### CHAPITRE 8 — Conclusion et Perspectives
+
+**Sources documentées dans CLAUDE.md :**
+- Section `Évolutions Futures et Limitations Actuelles` → CF, embeddings, Redis distribué
+- `pfe_academic_material.md` §6 → limites honnêtes + perspectives documentées
+- Section `new architecture version5 by claude code` → roadmap MVP / v2 / v3
+
+**Conclusion — ce qui a été réalisé :**
+- Pipeline LangGraph 19 nodes, 5 phases, fonctionnel end-to-end (8/8 PASS)
+- 3 bases de connaissances construites : API interne (746 hôtels, 272 vols, 141 bookings), MongoDB `restaurant_collection` (26 575 docs), MongoDB `activities_collection` (2 345 docs)
+- 8 innovations documentées (IN-01 à IN-08)
+- 10 décisions architecturales justifiées avec alternatives évaluées (DA-01 à DA-10)
+- Système déployable en production sur l'infrastructure MongoDB Atlas existante
+
+**Perspectives honnêtes (ne pas surestimer) :**
+1. Collaborative Filtering — infrastructure préparée, activation conditionnée au volume utilisateurs
+2. Recherche vectorielle (`paraphrase-multilingual-MiniLM-L12-v2`, 384d) — prématuré sur dataset actuel
+3. Cache distribué Redis — interface `cache_service.py` déjà abstraite, migration transparente
+4. Quiz de clarification en-conversation — direction produit validée (résout plusieurs champs en un écran)
+5. Phase 5 cross-session Redis — point d'injection (`session_signals`) en place
+
+---
+
+### Cartographie Sources → Chapitres
+
+| Chapitre | Source principale dans CLAUDE.md | Source dans pfe_academic_material.md |
+|---|---|---|
+| 1. Introduction | (à rédiger) | — |
+| 2. Organisme | (données internes ZenifyTrip) | — |
+| 3. État de l'art | `etude_de_existant_by_claude_code` | §8 Angles morts concurrents |
+| 4. Architecture | `Architecture : Graphe LangGraph` · `Pipeline 17 Étapes` | §1 DA-01→DA-10 · §4 CT-01→CT-06 |
+| 5. Données | `restaurant_collection` · `activities_collection` | §5 Pipeline préparation |
+| 6. Réalisation | `VERSION 1→8` · `Démarche Création Agent` | §3 IN-01→IN-08 |
+| 7. Tests | `VERSION 7 Validation` · `VERSION 1→6` | §2 Métriques · §7 Argument méthodologique |
+| 8. Conclusion | `Évolutions Futures` · `new architecture v5` | §6 Limites et perspectives |
+
+---
+
+### Ce Qui Reste À Rédiger (non documenté dans CLAUDE.md)
+
+| Élément | Statut | Notes |
+|---|---|---|
+| Présentation organisme ZenifyTrip | ❌ Non documenté | Données internes à récupérer auprès de l'agence |
+| Introduction générale | ❌ Non documenté | À rédiger ex nihilo |
+| Théorie systèmes de recommandation (CF, CBF, hybrid) | ❌ Non documenté | À rédiger depuis littérature académique |
+| Diagramme topologie graphe VERSION 8 coloré | ❌ Non produit | Générable depuis `builder.py` |
+| Diagramme de séquence message → réponse | ❌ Non produit | Timings disponibles dans `node_metrics` |
+| Conclusion générale | ❌ Non documenté | À rédiger |
+| Bibliographie | ❌ Non documentée | LangGraph docs, Pydantic docs, papiers CF/CBF |
+
+---
+
+### Chiffres Interdits à Écrire Sans Vérification
+
+Les chiffres suivants ont été mesurés à une date précise — vérifier qu'ils sont toujours valides avant de les citer dans le rapport :
+
+| Chiffre | Date mesure | À revérifier si... |
+|---|---|---|
+| 26 575 documents `restaurant_collection` | 2026-07-23 | Enrichissement complémentaire depuis |
+| 2 345 documents `activities_collection` | 2026-07-27 | Phase de nettoyage `activity_type unknown` effectuée |
+| 746 hôtels, 272 vols, 141 bookings | 2026-05-24 | Staging API mis à jour |
+| 8/8 PASS test_e2e.py | 2026-07-30 | Après toute modification de code |
+| 63,5% GPS restaurants | 2026-07-23 | Géocodage complémentaire effectué |
