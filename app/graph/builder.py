@@ -24,7 +24,7 @@ from app.nodes.recommendation.postprocessing.ranking_node import RankingNode
 from app.nodes.recommendation.postprocessing.recommendation_response_node import RecommendationResponseNode
 from app.nodes.recommendation.postprocessing.day_planner_node import DayPlannerNode
 from app.nodes.recommendation.postprocessing.day_skeleton_node import DaySkeletonNode
-from app.nodes.conversation.information_node import InformationNode
+from app.nodes.conversation.information_node import InformationNode, _WEATHER_KW
 from app.nodes.shared.feedback_logger_node import FeedbackLoggerNode
 from app.nodes.user_profile.profile_writer_node import ProfileWriterNode
 
@@ -54,8 +54,14 @@ def route_after_clarification_checker(state: GraphState) -> str:
     if next_action == "ask_clarification":
         return "final_response"
 
-    # Pipeline informatif : travel_question, booking_question
-    if primary_intent in INFORMATIVE_INTENTS:
+    # travel_question : weather_node uniquement si la question porte sur météo/saison/baignade
+    if primary_intent == "travel_question":
+        msg = (state.get("normalized_message") or state.get("user_message") or "").lower()
+        if any(kw in msg for kw in _WEATHER_KW):
+            return "weather_only"
+        return "information_node"
+    # booking_question : pas besoin de météo
+    if primary_intent == "booking_question":
         return "information_node"
 
     # profile_update, feedback → réponse directe (pas de pipeline)
@@ -64,6 +70,15 @@ def route_after_clarification_checker(state: GraphState) -> str:
 
     # Pipeline recommandation complet
     return "weather_node"
+
+
+def route_after_weather_node(state: GraphState) -> str:
+    """Après weather_node : pipeline informatif (travel_question) ou pipeline complet (recommendation)."""
+    intent_result  = state.get("intent_result") or {}
+    primary_intent = intent_result.get("primary_intent", "unsupported")
+    if primary_intent in INFORMATIVE_INTENTS:
+        return "information_node"
+    return "semantic_node"
 
 
 def route_after_orchestrator(state: GraphState) -> Union[str, List[str]]:
@@ -151,8 +166,9 @@ def build_graph():
         "clarification_checker",
         route_after_clarification_checker,
         {
-            "weather_node":     "day_skeleton",     # squelette immédiat (<10ms), puis pipeline
-            "information_node": "information_node", # pipeline informatif
+            "weather_node":     "day_skeleton",     # recommendation : skeleton immédiat, puis pipeline
+            "weather_only":     "weather_node",     # travel_question : weather direct, sans skeleton
+            "information_node": "information_node", # booking_question et autres informatifs
             "final_response":   "final_response",
         },
     )
@@ -160,7 +176,14 @@ def build_graph():
     graph.add_edge("information_node",   "final_response")
 
     # ── EDGES PHASE 2 ────────────────────────────────────────────────────────
-    graph.add_edge("weather_node",  "semantic_node")
+    graph.add_conditional_edges(
+        "weather_node",
+        route_after_weather_node,
+        {
+            "information_node": "information_node",
+            "semantic_node":    "semantic_node",
+        },
+    )
     graph.add_edge("semantic_node", "orchestrator")
 
     # ── EDGES PHASE 3 — fan-out conditionnel ─────────────────────────────────

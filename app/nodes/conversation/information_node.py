@@ -26,9 +26,18 @@ _PLACE_KW = frozenset({
 })
 
 _WEATHER_KW = frozenset({
-    "météo", "meteo", "temps", "temperature", "température",
+    # Météo directe
+    "météo", "meteo", "temperature", "température",
     "chaud", "froid", "pluie", "pluvieux", "soleil", "vent",
     "nuageux", "beau temps", "climat", "weather",
+    # Vêtements / préparation vestimentaire
+    "vêtements", "vetements", "habits", "tenue", "imperméable", "impermeable",
+    "manteau", "pull", "légèrement vêtu",
+    # Baignade / plage faisable
+    "baigner", "nager", "baignade", "se baigner", "plage", "natation",
+    # Saison / période idéale
+    "saison", "période idéale", "periode ideale",
+    "meilleure période", "meilleure saison", "bonne période",
 })
 
 _BOOKING_KW = frozenset({
