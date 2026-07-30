@@ -5,6 +5,7 @@ business_score = 0.8 (vendable, commission agence)
 """
 import logging
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -263,10 +264,27 @@ class InternalActivityService:
         if not bookings_by_activity:
             return []
 
+        # Fetch toutes les activités en parallèle — évite le N+1 séquentiel
+        # (40 IDs × ~200ms = 8s cumulés sur cache froid → max(200ms) parallèle).
+        fetched: Dict[str, Dict[str, Any]] = {}
+        with ThreadPoolExecutor(max_workers=8) as _pool:
+            future_to_id = {
+                _pool.submit(InternalActivityService.get_activity_by_id, aid): aid
+                for aid in bookings_by_activity
+            }
+            for fut in as_completed(future_to_id, timeout=12):
+                aid = future_to_id[fut]
+                try:
+                    result = fut.result()
+                    if result:
+                        fetched[aid] = result
+                except Exception as exc:
+                    logger.warning(f"[InternalActivityService] fetch {aid}: {exc}")
+
         candidates: List[Dict[str, Any]] = []
 
         for activity_id, booking in bookings_by_activity.items():
-            activity = InternalActivityService.get_activity_by_id(activity_id)
+            activity = fetched.get(activity_id)
             if not activity:
                 continue
 
