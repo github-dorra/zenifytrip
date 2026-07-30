@@ -10,3 +10,9 @@ node_modules
 test_weather.py
 app/test.py
 app/test_ollama.py
+
+# Claude Code internal
+skills-lock.json
+
+# Runtime cache (généré automatiquement — pas de valeur à versionner)
+app/.cache/
