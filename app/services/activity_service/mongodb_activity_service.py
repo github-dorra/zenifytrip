@@ -9,6 +9,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.activity_service.scoring import budget_proximity_score
+from app.config.settings import USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -351,7 +352,7 @@ def get_candidates(
             doc, global_keywords or [], budget_level, traveler_type, beach_score,
             search_score=search_score,
         )
-        score = round(0.7 * user_score + 0.3 * BUSINESS_SCORE, 4)
+        score = round(USER_SCORE_WEIGHT * user_score + BUSINESS_SCORE_WEIGHT * BUSINESS_SCORE, 4)
 
         doc_id = str(doc.get("_id", "")) or doc.get("name", "")
 

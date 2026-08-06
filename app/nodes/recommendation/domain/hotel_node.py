@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.services.hotel_service import HotelService
 from app.data.tunisia_destinations import city_to_iata, get_airport_coords
+from app.config.settings import USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ class HotelNode(BaseNode):
         # 5. FUSION + TRI + TOP 5
         # --------------------------------------------------
         all_candidates = tier1_candidates + tier2_candidates
-        all_candidates.sort(key=lambda x: x["score"], reverse=True)
+        all_candidates.sort(key=lambda x: x["user_score"], reverse=True)
         top5 = all_candidates[:5]
 
         logger.info(
@@ -225,7 +226,7 @@ class HotelNode(BaseNode):
                 budget_level=budget_level,
                 is_family=is_family,
             )
-            final_score = round(0.7 * user_score + 0.3 * business_score, 4)
+            final_score = round(USER_SCORE_WEIGHT * user_score + BUSINESS_SCORE_WEIGHT * business_score, 4)
 
             result.append({
                 "id":                hotel_id,

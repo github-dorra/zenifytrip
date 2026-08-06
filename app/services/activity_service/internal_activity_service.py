@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from app.config.settings import ACTIVITIES_API_URL, BOOKINGS_API_URL, API_KEY
+from app.config.settings import ACTIVITIES_API_URL, BOOKINGS_API_URL, API_KEY, USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT
 from app.services.activity_service.scoring import budget_proximity_score
 from app.services.cache_service import SimpleTTLCache, cache
 
@@ -340,7 +340,7 @@ class InternalActivityService:
                 activity, global_keywords or [], budget_level, traveler_type
             )
             business_score = InternalActivityService.BUSINESS_SCORE
-            score = round(0.7 * user_score + 0.3 * business_score, 4)
+            score = round(USER_SCORE_WEIGHT * user_score + BUSINESS_SCORE_WEIGHT * business_score, 4)
 
             max_p = activity.get("maxParticipants") or 0
             reg_p = activity.get("registeredParticipants") or 0
