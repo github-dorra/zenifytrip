@@ -122,7 +122,7 @@ class MongoRestaurantService:
             "is_open_now":        None,
             "distance_km":        distance_km,
             "photo_reference":    doc.get("photo_url"),
-            "match_score":        0.0,
+            "user_score":         0.0,
             "matched_criteria":   [],
             "establishment_types": doc.get("establishment_types") or [],
             "tier":               "mongodb",
@@ -174,9 +174,11 @@ class MongoRestaurantService:
             {"$addFields": {"search_relevance": {"$meta": "searchScore"}}},
         ]
 
-    # ── Scoring — formule validée le 2026-07-24 ─────────────────────────────
-    #   score = search_relevance(35%) + rating_confiance(25%) + business_score(20%)
-    #         + zone_priority(10%) + budget_soft_match(10%)
+    # ── Scoring — formule V2 (2026-08-03) ───────────────────────────────────
+    #   user_score = search_relevance(43.75%) + rating_confiance(31.25%)
+    #              + zone_priority(12.5%)     + budget_soft_match(12.5%)
+    #   business_score extrait séparément → business_boost appliqué par ranking_node
+    #   Re-normalisation proportionnelle : poids originaux (0.35+0.25+0.10+0.10=0.80) ÷ 0.80
     # is_family conservé dans la signature pour compatibilité d'appel
     # (restaurant_service.py) mais n'entre pas dans cette formule — pas de
     # signal fiable pour la famille dans les champs actuels de la collection.
@@ -187,7 +189,7 @@ class MongoRestaurantService:
         if rating is None:
             return 0.5
         normalized = max(0.0, min(1.0, (float(rating) - 1) / 4))
-        confidence = min(1.0, math.log((reviews or 0) + 1) / math.log(50)) if reviews else 0.5
+        confidence = max(0.5, min(1.0, math.log((reviews or 0) + 1) / math.log(50))) if reviews else 0.5
         return round(normalized * (0.5 + 0.5 * confidence), 4)
 
     @staticmethod
@@ -238,8 +240,8 @@ class MongoRestaurantService:
         if budget_s == 1.0:
             criteria.append("budget_match")
 
-        s = (rel * 0.35) + (rating_c * 0.25) + (biz * 0.20) + (zone_p * 0.10) + (budget_s * 0.10)
-        return round(min(s, 1.0), 4), criteria
+        user_s = (rel * 0.4375) + (rating_c * 0.3125) + (zone_p * 0.125) + (budget_s * 0.125)
+        return round(min(user_s, 1.0), 4), criteria
 
     # ── Point d'entrée principal ──────────────────────────────────────────
 
@@ -322,10 +324,10 @@ class MongoRestaurantService:
                     c, keywords, budget_level, is_family,
                     search_relevance_norm=rel_norm, destination=destination,
                 )
-                c["match_score"]    = sc
+                c["user_score"]     = sc
                 c["matched_criteria"] = crit
 
-            candidates.sort(key=lambda x: x["match_score"], reverse=True)
+            candidates.sort(key=lambda x: x["user_score"], reverse=True)
             return candidates[:max_results]
 
         except Exception as e:
