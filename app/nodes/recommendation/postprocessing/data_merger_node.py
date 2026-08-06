@@ -48,7 +48,7 @@ class DataMergerNode(BaseNode):
                 candidate = dict(c)
                 candidate["domain"]      = domain
                 candidate["final_score"] = round(
-                    float(c.get("score") or c.get("match_score") or 0.0), 4
+                    float(c.get("user_score") or c.get("match_score") or c.get("score") or 0.0), 4
                 )
                 enriched.append(candidate)
 
