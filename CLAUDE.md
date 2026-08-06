@@ -2352,103 +2352,105 @@ clarification_checker
 
 ---
 
-## Scoring V2 Roadmap — Améliorations Identifiées (non codées)
+## Scoring V2 — Améliorations Implémentées (2026-08-06)
 
-> Ces trois améliorations ont été identifiées lors du sprint scoring (2026-08-06) et documentées comme roadmap V2. Elles ne seront pas implémentées dans le périmètre PFE actuel — le scoring V1 est suffisant pour la soutenance. Chaque amélioration est autonome (peut être implémentée indépendamment).
+> Ces trois améliorations ont été identifiées lors du sprint scoring (2026-08-06), documentées, puis implémentées et commitées dans la même session. Chaque amélioration est autonome et a fait l'objet d'un commit séparé.
+>
+> **Commits :** `5f403da` (①②) · `b090953` (③)
+
+**Score final restaurant (formule 6 termes, `mongo_restaurant_service.py::score()`) :**
+```
+user_score = rel(35%) + rating(25%) + zone(10%) + budget(10%) + proximity(10%) + hours(10%)
+           divisé par _SCORE_TOTAL (1.00) — aucune re-normalisation nécessaire
+```
+
+**Score final activité (formule V2 multiplicative, `ranking_node.py`) :**
+```
+ranked_score = user_score × business_boost × availability_factor × weather_factor
+weather_factor ∈ [WEATHER_FACTOR_MIN=0.70, 1.0] — jamais éliminatoire
+```
 
 ---
 
-### ① Proximity Score Restaurant — `distance_km` dans le scoring
+### ① Proximity Score Restaurant — `distance_km` dans le scoring ✅ Implémenté
 
-**Problème actuel :** `distance_km` est calculé par haversine dans `mongo_restaurant_service.py` (mode `nearby` quand les coordonnées GPS du voyageur sont connues) et stocké dans chaque `RestaurantCandidate`, mais n'entre **jamais** dans la formule `score()`. Le champ `zone_priority` mesure la spécificité géographique du match (city vs gouvernorat), pas la distance réelle.
-
-**Amélioration proposée :**
+**Implémentation (`app/services/mongo_restaurant_service.py`) :**
 ```python
-# Exemple : décroissance linéaire sur 0-5 km
-def proximity_score(distance_km: Optional[float]) -> float:
+@staticmethod
+def _proximity_score(distance_km: Optional[float]) -> float:
+    """1.0 à 0 km, décroissance linéaire, plancher 0.1 à RESTAURANT_PROXIMITY_MAX_KM.
+    Retourne 0.5 (neutre) quand distance_km est None (USER NATIF/exploratory = zéro pénalité)."""
     if distance_km is None:
-        return 0.5   # inconnu → neutre
-    return round(max(0.0, 1.0 - distance_km / 5.0), 4)
+        return 0.5
+    return round(max(0.1, 1.0 - float(distance_km) / RESTAURANT_PROXIMITY_MAX_KM), 4)
 ```
-Intégrer `proximity_score` dans `score()` à la place de (ou en complément de) `zone_priority`, uniquement quand `distance_km` est non-null.
-
-**Prérequis :** `distance_km` est déjà calculé → 0 effort de collecte de données.
-
-**Impact estimé :** moyen-fort — différencie un restaurant à 300m d'un à 4km. Pertinent surtout pour le mode "nearby" (voyageur actif avec GPS hôtel connu). Neutre pour le mode `text_search` (distance_km souvent null).
-
-**Effort estimé :** faible — 1 helper + 1 ligne dans `score()` + ajustement des poids pour que les 4 termes restent normalisés (actuellement `rel×0.4375 + rating×0.3125 + zone×0.125 + budget×0.125`).
-
-**Fichier :** `app/services/mongo_restaurant_service.py` — méthode `score()` + nouveau `_proximity_score()`.
+- `RESTAURANT_PROXIMITY_MAX_KM = 5.0` dans `settings.py` (configurable via `.env`)
+- `_proximity_score` intégré comme 5e terme dans `score()` avec poids `0.10`
+- `zone_priority` conservé avec poids réduit `0.10` (était `0.125`) — mesure la spécificité du match, pas la distance
+- Critère `"proximity_far"` ajouté dans `matched_criteria` si score < 0.5
 
 ---
 
-### ② Horaires d'Ouverture dans le Scoring Restaurant
+### ② Horaires d'Ouverture dans le Scoring Restaurant ✅ Implémenté
 
-**Problème actuel :** `opening_hours_text` est présent sur 99,9% des documents MongoDB (ex. `"Lun-Dim: 12:00-23:00"`), mais jamais utilisé pour pénaliser un restaurant fermé au moment demandé. Un restaurant fermé peut remonter en top-1 si son scoring multicritère est bon.
-
-**Amélioration proposée :**
+**Implémentation (`app/services/mongo_restaurant_service.py`) :**
 ```python
-def hours_score(opening_hours_text: Optional[str], request_hour: int) -> float:
-    """Parse opening_hours_text (texte libre) → 1.0 si ouvert, 0.3 si fermé, 0.5 si inconnu."""
-    # Logique : regex sur les plages horaires, comparaison avec request_hour
+_TIME_RE = re.compile(
+    r'(\d{1,2})\s*[h:]\s*\d{0,2}\s*[-–]\s*(\d{1,2})\s*[h:]\s*\d{0,2}',
+    re.IGNORECASE,
+)
+
+@staticmethod
+def _hours_score(opening_hours_text: Optional[str], request_hour: Optional[int]) -> float:
+    """1.0 si probablement ouvert, 0.3 si fermé, 0.5 si inconnu.
+    Neutre (0.5) quand request_hour est None ou format non parseable."""
 ```
-Déclenchement : récupérer l'heure depuis `weather_context["timestamp"]` ou `datetime.now()`.
-
-**Prérequis :** le champ `opening_hours_text` est en texte libre non structuré (ex. `"Lun-Sam 11h30-14h30 et 19h-22h30, Dim fermé"`) — le parsing est la difficulté principale. Approches : regex sur les patterns tunisiens les plus courants, ou normalisation préalable en base (script one-shot).
-
-**Impact estimé :** moyen — évite des recommandations de restaurants fermés, surtout pour le day planner (slot matin/soir). Faible impact quand l'utilisateur ne précise pas d'heure.
-
-**Effort estimé :** moyen — le parsing texte libre est fragile. Recommandé de normaliser `opening_hours_text` en `opening_hours_structured` (dict `{day: [{open, close}]}`) par un script d'enrichissement MongoDB avant d'intégrer dans le scoring.
-
-**Fichier :** `app/services/mongo_restaurant_service.py` + script `app/scripts/normalize_opening_hours.py` (nouveau).
+- `request_hour` injecté dans `search_strategy` par `restaurant_node.py` via `datetime.now().hour`
+- Guard : **désactivé si `day_skeleton` présent** (pool complet nécessaire pour le day_planner)
+- Flux : `restaurant_node → search_strategy["request_hour"] → restaurant_service → MongoRestaurantService.search(request_hour=) → score(request_hour=)`
+- Critère `"possibly_closed"` ajouté dans `matched_criteria` si score == 0.3
+- Chevauchement minuit géré (`close_h < open_h` : ex. 20h-02h)
 
 ---
 
-### ③ Météo dans le Scoring Activités
+### ③ Météo dans le Scoring Activités ✅ Implémenté
 
-**Problème actuel :** `weather_context` est dans le state et contient `insights.outdoor_score` / `insights.indoor_score` (calculés par `weather_node`), mais `activity_node` et `mongodb_activity_service.py` ne les lisent pas. Une activité nautique peut être proposée par grand vent, une visite de musée par beau temps de 28°C.
-
-**Amélioration proposée :**
+**Implémentation (`app/nodes/recommendation/postprocessing/ranking_node.py`) :**
 ```python
-# Dans mongodb_activity_service.py — composante météo dans user_score
-def weather_fit_score(
-    activity_type: str,
-    indoor: bool,
-    outdoor_score: float,   # 0.0-1.0 depuis weather_node
-    indoor_score: float,
-) -> float:
-    """
-    nature / adventure / outdoor → pondéré par outdoor_score
-    culture / relax              → pondéré par indoor_score (musées, spas)
-    unknown                      → 0.5 (neutre)
-    """
-    if activity_type in ("nature", "adventure") or not indoor:
-        return outdoor_score
-    if activity_type in ("culture", "relax") or indoor:
-        return indoor_score
-    return 0.5
+@staticmethod
+def _weather_factor(c: Dict, weather_context: Optional[Dict]) -> float:
+    """Facteur [WEATHER_FACTOR_MIN, 1.0] — uniquement activités à type connu."""
+    if c.get("domain") != "activity":
+        return 1.0   # neutre pour hotel/flight/restaurant
+    activity_type = (c.get("activity_type") or "").strip().lower()
+    if not activity_type or activity_type == "unknown":
+        return 1.0   # pas de signal fiable
+    insights = (weather_context.get("insights") or {})
+    outdoor_score = float(insights.get("outdoor_score") or 0.7)
+    indoor_score  = float(insights.get("indoor_score")  or 0.7)
+    if activity_type in ("nature", "adventure"):      raw = outdoor_score
+    elif activity_type in ("culture", "relax"):       raw = indoor_score
+    elif activity_type == "city_experience":          raw = (outdoor_score + indoor_score) / 2.0
+    else:                                             return 1.0
+    return round(WEATHER_FACTOR_MIN + (1.0 - WEATHER_FACTOR_MIN) * raw, 4)
 ```
-Intégrer `weather_fit_score` dans `_compute_user_score()` avec un poids ~0.15 (en rééquilibrant les autres termes).
-
-**Prérequis :** `outdoor_score` et `indoor_score` sont déjà produits par `weather_node` et stockés dans `weather_context.insights`. Champs `activity_type` et `indoor` renseignés à 100% dans `activities_collection` (Phase 5 du pipeline de préparation). Seul manque : passer `weather_context` jusqu'aux services activités (actuellement non transmis).
-
-**Impact estimé :** fort — différenciateur direct pour le day planner contextuel (doctrine "ami local expert"). Exemple : Djerba, vent fort → musée Guellala (culture, indoor) monte, activité plongée (nature, outdoor) descend.
-
-**Effort estimé :** moyen — la logique est simple, mais le passage de `weather_context` aux services activités nécessite de modifier l'interface `ActivityNode.run()` → `MongoActivityService.get_candidates()` (ajout d'un paramètre `weather_context: Optional[Dict]`).
-
-**Fichier :** `app/services/activity_service/mongodb_activity_service.py` + `app/nodes/recommendation/domain/activity_node.py` (passage du contexte météo).
+- Décision : implémenté dans `ranking_node` (pas dans les services activités) — `weather_context` est déjà dans le GraphState au moment du ranking, zéro modification d'interface aux services
+- `WEATHER_FACTOR_MIN = 0.70` dans `settings.py` — jamais éliminatoire (plancher 0.70)
+- `candidate["weather_factor"]` exposé pour traçabilité dans les réponses
+- Formule complète : `ranked_score = user_score × business_boost × avail_factor × weather_factor`
+- Exemple : Djerba, vent fort (outdoor_score=0.3) → plongée (nature) : `weather_factor = 0.70 + 0.30×0.3 = 0.79` → musée Guellala (culture, indoor_score=0.9) : `weather_factor = 0.70 + 0.30×0.9 = 0.97`
 
 ---
 
-### Tableau de Priorisation V2
+### Récapitulatif Implémentation
 
-| # | Amélioration | Impact | Effort | Prérequis données | Priorité suggérée |
-|---|---|---|---|---|---|
-| ① | Proximity score restaurant (`distance_km`) | Moyen-fort | **Faible** | ✅ Prêt (distance_km calculé) | **1er** |
-| ③ | Météo dans scoring activités (`outdoor_score`) | **Fort** | Moyen | ✅ Prêt (weather_context + activity_type + indoor) | **2e** |
-| ② | Horaires d'ouverture restaurant | Moyen | Moyen (parsing) | ⚠️ Normalisation nécessaire | **3e** |
+| # | Amélioration | Fichier principal | Commit | Statut |
+|---|---|---|---|---|
+| ① | Proximity score (`distance_km`) | `mongo_restaurant_service.py` | `5f403da` | ✅ Implémenté |
+| ② | Horaires d'ouverture (`opening_hours_text`) | `mongo_restaurant_service.py` | `5f403da` | ✅ Implémenté |
+| ③ | Météo activités (`outdoor_score`/`indoor_score`) | `ranking_node.py` | `b090953` | ✅ Implémenté |
 
-> **Règle architecturale à respecter lors de l'implémentation :** chaque amélioration doit être implémentée dans le service source (pas dans `ranking_node`). `ranking_node` ne doit pas connaître la logique métier des domaines — il applique la formule V2 multiplicative sur des `user_score` déjà calculés.
+> **Note architecturale :** ① et ② ont été intégrés dans le service source `mongo_restaurant_service.py` (scoring du domaine restaurant). ③ a été intégré dans `ranking_node.py` (transversal, car `weather_context` est déjà dans le GraphState au moment du ranking — zéro modification d'interface aux services activités).
 
 ---
 

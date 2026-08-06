@@ -110,11 +110,24 @@ de l'app. ~4.5 GB RAM, CPU-only sur CX32, ~8-12s par requête — acceptable com
 - main.py état incomplet : build_initial_state() déjà utilisé, pas de state.update(result)
 - final_response_node.py : intent_result None-safety + constraints correct path
 
-## ✅ Scoring V2 Roadmap documentée (2026-08-06)
-3 améliorations identifiées et documentées dans CLAUDE.md (section "Scoring V2 Roadmap") — NE PAS CODER :
-- ① proximity_score restaurant (distance_km déjà calculé, effort faible, impact moyen-fort)
-- ② horaires d'ouverture (opening_hours_text 99,9% rempli, parsing texte libre = effort moyen)
-- ③ météo dans scoring activités (outdoor_score/indoor_score déjà dans state, effort moyen)
+## ✅ Scoring V2 Implémenté (2026-08-06)
+3 améliorations commitées — commits `5f403da` (①②) et `b090953` (③) :
+
+### ① Proximity score restaurant (commit 5f403da)
+- `_proximity_score(distance_km)` : 1.0 à 0km, décroissance linéaire, plancher 0.1 à RESTAURANT_PROXIMITY_MAX_KM=5km
+- `RESTAURANT_PROXIMITY_MAX_KM` dans settings.py
+- Formule 6 termes : rel(35%) + rating(25%) + zone(10%) + budget(10%) + proximity(10%) + hours(10%)
+
+### ② Horaires d'ouverture restaurant (commit 5f403da)
+- `_hours_score(opening_hours_text, request_hour)` : regex _TIME_RE sur formats FR/EN tunisiens
+- `request_hour` injecté par restaurant_node via `datetime.now().hour`, désactivé si day_skeleton présent
+- Flux : restaurant_node → search_strategy["request_hour"] → restaurant_service → MongoRestaurantService.search()
+
+### ③ Weather factor activités (commit b090953)
+- `_weather_factor(candidate, weather_context)` dans ranking_node
+- nature/adventure → outdoor_score ; culture/relax → indoor_score ; city_experience → moyenne
+- Interpolation [WEATHER_FACTOR_MIN=0.70, 1.0] — jamais éliminatoire
+- Formule : ranked_score = user_score × business_boost × avail_factor × weather_factor
 
 ## 🚀 Prochaine quête
 - Finalisation rapport PFE
