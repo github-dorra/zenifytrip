@@ -37,6 +37,80 @@ feedback_logger_node + profile_writer_node + ranking cross-session
 - 3/3 tests PASS : cultural/heritage/beach/outdoor → matching cross-langue FR↔EN
 - CLAUDE.md → VERSION 8 ajouté
 
+## ✅ Orchestrateur Intelligent (completed — 2026-07-31)
+Hybrid orchestrator (règles 80% + LLM Gemini si voyage actif / repas inclus / dernier jour)
+
+### Fichiers modifiés / créés
+- `app/prompts/recommendation/orchestrator_prompt.py` — prompt context-aware (meal_plan, skeleton, booking_anchors, 4 exemples)
+- `app/schemas/orchestrator_schema.py` — OrchestratorOutput Pydantic (requested_services, constraints_per_service, reasoning)
+- `app/config/definitions.py` — ORCHESTRATOR_CONFIG (gemini, temp=0.0, max_tokens=600)
+- `app/graph/state.py` — orchestrator_constraints + orchestrator_reasoning dans TypedDict + build_initial_state()
+- `app/nodes/recommendation/orchestration/orchestrator_node.py` — full rewrite hybrid (_needs_llm, _rules_decision, _llm_decision)
+- `app/nodes/recommendation/domain/activity_node.py` — filtres post-fetch (max_duration_hours, exclude_activity_ids, exclude_types)
+- `app/nodes/recommendation/domain/restaurant_node.py` — meal_slot override dans _resolve_establishment_types (priorité 2)
+- `app/graph/builder.py` — comment [tech] → [LLM] Gemini 3.1 Flash Lite
+
+### Comportement
+- USER NATIF / intent simple → chemin règles (0 token LLM)
+- USER RÉEL voyage en cours (HB/AI/FB, dernier jour, anchors) → LLM single-shot avec contraintes par service
+- Fallback automatique règles si LLM échoue (try/except)
+
+### Tests (2026-07-31)
+4/4 PASS — `python -m app.test_orchestrator`
+- S1 HB dernier jour : LLM calcule 2h fenêtre, max_duration_hours=2.0, exclude_types=[full_day,excursion], nearby_hotel=true
+- S2 AI jour normal : restaurant_node absent (tout inclus)
+- S3 USER NATIF : chemin règles, 0 LLM
+- S4 AI + resto explicite : optional_experience=true, meal_slot=dinner
+
+## ✅ Agent 3 — InformativeResponseNode (2026-07-31)
+- `app/nodes/conversation/informative_response_node.py` — Agent 3 (Gemini, prompt expert)
+- `app/prompts/informative_response_prompt.py` — prompt spécialisé 6 subtypes
+- `app/config/definitions.py` — INFORMATIVE_RESPONSE_CONFIG
+- `app/config/settings.py` — TAVILY_TIMEOUT_SECONDS + TAVILY_MAX_RESULTS
+- `app/nodes/conversation/information_node.py` — _DYNAMIC_KW + _resolve_dynamic_factual + cache session
+- `app/graph/builder.py` — information_node → informative_response → END (était → final_response)
+- Flux : travel_question/booking_question → information_node (rule-based) → informative_response (LLM Agent 3) → END
+- Tavily : dynamic_factual (visa/prix/horaires/événements), cache session, fallback LLM si no key/timeout/0 results
+- Compilation : 27 nodes OK
+
+## ✅ VERSION 10 — Agent 3 + Fix vol (session 2026-07-31)
+- `information_node.py` — `_BOOKING_KW` étendu vols, `_profile_flights()`, `_extract_flight_info()` normalisé, `_resolve_booking_info()` normalisé, `_detect_subtype()` + `profile_data`
+- `builder.py` — `_BOOKING_FORCE_KW` guard + `route_after_context_merge` + edge `information_node → informative_response → END`
+- `informative_response_prompt.py` — section booking_info vol + exemple TU309
+- `CLAUDE.md` — VERSION 10 documentée (3 agents, Tavily, chemin normalisé vols, topologie 27 nodes)
+
+## ✅ Déploiement Hetzner + Moteur Inférence Ollama (session hebergement)
+Staging complet sur Hetzner CX32 avec Ollama comme moteur d'inférence local.
+
+### Fichiers créés / modifiés
+- `app/api.py` — FastAPI wrapper autour du pipeline LangGraph (POST /chat, GET /health)
+- `app/config/llm_service.py` — fix Ollama URL (localhost:11434), init sans auth, 3ème fallback Gemini→Groq→Ollama
+- `Dockerfile` — python:3.13-slim, fastapi + uvicorn, 2 workers
+- `docker-compose.yml` — services: app + ollama (llama3.1:8b) + redis + nginx
+- `nginx/default.conf` — reverse proxy, timeout 120s pour pipeline LangGraph
+- `.env.example` — template complet toutes variables d'env
+- `deploy.sh` — script step-by-step Ubuntu 22.04 Hetzner CX32
+
+### Chaîne LLM déployée
+Gemini (principal, 1500 req/j) → Groq (fallback 429) → Ollama llama3.1:8b (fallback final, moteur local)
+
+### Justification modèle Ollama
+llama3.1:8b retenu (vs llama3.2:3b initial) pour maintenir la précision et la crédibilité
+de l'app. ~4.5 GB RAM, CPU-only sur CX32, ~8-12s par requête — acceptable comme fallback d'urgence.
+
+## ✅ Sprint Scoring (2026-08-06) — 6 bugs scoring corrigés
+- P0 da16d81 : `user_score` absent RestaurantCandidate → restaurants MongoDB filtrés → model_validator sync
+- P1 b2bab5e : data_merger lisait `score` avant `user_score` → chaîne user_score>match_score>score
+- P2 181a927 : 0.7/0.3 hardcodés dans 4 services → import USER_SCORE_WEIGHT/BUSINESS_SCORE_WEIGHT
+- P3 dffb486 : SerpAPI business_score=0.50 au lieu de 0.20 → valeur explicite + mapping ranking_node
+- P4 40f778f : _rating_confiance non-monotone (2 avis < 0 avis) → max(0.5, ...)
+- P5 9995650 : budget_soft_match binaire → décroissance linéaire 0-4
+
+## ✅ Bugs Connus CLAUDE.md — tous résolus
+- main.py état incomplet : build_initial_state() déjà utilisé, pas de state.update(result)
+- final_response_node.py : intent_result None-safety + constraints correct path
+
 ## 🚀 Prochaine quête
-- Phase 6 si nécessaire (agent explicabilité, emotion_intent_agent — voir CLAUDE.md section "new architecture version5")
-- Ou finalisation rapport PFE
+- Finalisation rapport PFE
+- Tests E2E complets (8 scénarios) pour valider la chaîne scoring corrigée
+- Tester "quel est le prix d'entrée au Bardo ?" (dynamic_factual + Tavily si TAVILY_API_KEY configurée)

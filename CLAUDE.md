@@ -7,7 +7,7 @@ ZenifyTrip est un **système intelligent de recommandation touristique** basé s
 
 L'utilisateur décrit ses besoins en langage naturel (français en priorité, aussi EN/ES/DE/AR). Le système classifie l'intention, extrait les contraintes, détecte les informations manquantes et génère une réponse conversationnelle personnalisée.
 
-Construit sur **LangGraph** (pipeline de 17 étapes, 5 phases), avec **Groq** comme LLM principal et **Ollama Cloud** pour les agents lourds. Le système fonctionne selon 3 modes : **EXPLORATORY** (user natif, peu de détails), **PRECISE_PLAN** (destination + durée connues), **BOOKING** (réservation immédiate via APIs internes agence). L'architecture repose sur 4 couches : collecte de données, services spécialisés, validation Pydantic, et graphe multi-agents LangGraph.
+Construit sur **LangGraph** (19 nodes, 5 phases), avec **Gemini 2.0 Flash** (Google AI Studio) comme LLM principal et un fallback automatique **Groq** sur quota épuisé. Le système fonctionne selon 3 modes : **EXPLORATORY** (user natif, peu de détails), **PRECISE_PLAN** (destination + durée connues), **BOOKING** (réservation immédiate via APIs internes agence). L'architecture repose sur 4 couches : collecte de données, services spécialisés, validation Pydantic, et graphe multi-agents LangGraph.
 
 ### Objectif Principal
 Fournir des recommandations **personnalisées, contextuelles et dynamiques** tout en servant un objectif commercial réel.
@@ -31,7 +31,9 @@ La vraie innovation de ZenifyTrip est la combinaison de :
 |-----------|-------------|
 | **Business Recommendation** | Priorité commerciale agence — offres internes avant sources externes |
 | **Contextual AI** | Météo, localisation, saison intégrés dans les recommandations |
-| **Multi-Agent Orchestration** | Planner et Orchestrator séparés — pipeline de 17 étapes |
+| **Hybrid Orchestration** | Orchestrateur hybride règles 80% / LLM 20% — LLM activé uniquement pour les voyageurs en séjour actif avec repas inclus ou dernier jour de voyage |
+| **Orchestrator-Driven Constraints** | L'orchestrateur injecte des contraintes par service (`max_duration_hours`, `meal_slot`, `exclude_types`) vers les domain nodes — les candidats sont filtrés avant le ranking |
+| **Multi-Agent Orchestration** | Planner et Orchestrator séparés — pipeline de 19 étapes |
 | **Conversational Planning** | Chatbot LLM naturel — dialogue progressif et affinement |
 | **Booking-Aware Day Planning** | Le day planner planifie **AUTOUR** de ce que le voyageur a déjà payé (repas inclus, services bookés, transfert, heures de vol) — jamais à côté, jamais en doublon |
 | **Instant Skeleton** | La journée apparaît en squelette en < 2s (Python pur, streaming LangGraph), les détails se remplissent pendant que l'utilisateur lit |
@@ -66,10 +68,10 @@ AVAILABILITY_UNKNOWN_FACTOR_PROTECTED, AVAILABILITY_UNKNOWN_FACTOR_OPEN
 | Composant | Version / Détail |
 |-----------|-----------------|
 | Python | 3.13 — venv actif : **venv1** |
-| LangGraph | 1.1.8 — orchestre le graphe d'agents (StateGraph, 17 étapes) |
+| LangGraph | 1.1.8 — orchestre le graphe d'agents (StateGraph, 19 nodes) |
 | LangChain Core | 1.3.0 — abstractions de base |
-| Groq API | LLM principal (`llama-3.3-70b-versatile`) — gratuit, rapide |
-| Ollama Cloud | LLM secondaire (`gpt-oss:120b`, `gemini-3-flash-preview`) — ~20$/mois, agents lourds |
+| Gemini API | LLM principal (`gemini-2.0-flash`, `gemini-3.1-flash-lite`) — Google AI Studio gratuit, 1500 req/jour |
+| Groq API | LLM fallback automatique (`llama-3.3-70b-versatile`) — activé sur 429 Gemini |
 | Pydantic v2 | Validation stricte des données — contrats entre agents |
 | python-dotenv | Chargement des variables d'environnement |
 
@@ -108,10 +110,10 @@ pool = redis.ConnectionPool(max_connections=50, ...)
 ### Exemples de valeurs déjà centralisées dans `settings.py`
 | Constante | Usage | Change si... |
 |-----------|-------|-------------|
-| `REDIS_MAX_CONNECTIONS` | Pool Redis | Changement plan Redis Cloud |
-| `PROFILE_CACHE_MAX_TTL_SECONDS` | TTL profil Redis | Décision produit |
+| `REDIS_MAX_CONNECTIONS` | Pool Redis (Phase 5 cross-session) | Changement plan Redis Cloud |
+| `INTERACTIONS_REDIS_PREFIX` | Préfixe clés interactions Redis | Multi-env staging/prod |
+| `INTERACTIONS_REDIS_TTL_SECONDS` | TTL préférences cross-session (30j) | Décision produit |
 | `USER_SCORE_WEIGHT` / `BUSINESS_SCORE_WEIGHT` | Ranking 70/30 | Ajustement algo |
-| `PROFILE_CACHE_PREFIX` | Namespace clés Redis | Multi-env staging/prod |
 
 ---
 
@@ -138,11 +140,11 @@ START ──→ [greeting]          ──→ [intent_classifier] ────�
 |------|------|------|--------|
 | `greeting` | Python technique | Normalise le message (`strip().lower()`) | ✓ |
 | `session_bootstrap` | Python technique | Résout `travellerId` via API, assigne `user_type` + `suggestion_mode` initial | ✓ |
-| `intent_classifier` | LLM Groq | Classifie intent, extrait contraintes, détecte langue | ✓ |
+| `intent_classifier` | LLM Gemini | Classifie intent, extrait contraintes, détecte langue | ✓ |
 | `profile_loader` | API interne | Charge profil voyageur structuré depuis API staging | ✓ |
 | `context_merger` | Python technique | Fusionne intent + profil → `merged_context` enrichi | ✓ |
 | `clarification_checker` | Rule-based | Détecte champs manquants, détermine mode, respecte `user_type` | ✓ |
-| `final_response` | LLM Ollama | Génère réponse conversationnelle naturelle | ✓ |
+| `final_response` | LLM Gemini | Génère réponse conversationnelle naturelle | ✓ |
 
 **Logique USER RÉEL / USER NATIF (implémentée dans `session_bootstrap` + `clarification_checker`) :**
 
@@ -257,12 +259,6 @@ START → [greeting] + [session_bootstrap]         ← fan-out parallèle
 | `semantic_node.py` | 4 keywords de proximité ajoutés : `nearbyRestaurant`, `walkingDistance`, `hotelRestaurant`, `aroundMe` |
 | `tunisia_destinations.py` | `AIRPORT_COORDS` dict (9 aéroports) + `get_airport_coords(iata)` |
 
-#### À faire avant tests end-to-end
-
-- [ ] Implémenter `activity_node.py` (GET /api/bookings → /api/activities/{id})
-- [ ] Câbler `ranking_node` → `day_planner_node` → `recommendation_composer_node` entre `data_merger` et `final_response`
-- [ ] Test bout-en-bout Phase 1→4
-
 ## Structure des Répertoires
 ```
 app/
@@ -346,7 +342,7 @@ app/
 │   └── map_schema.py
 │
 └── services/
-    ├── llm_service.py           # call_llm() → dispatche vers call_groq_llm ou call_ollama_llm
+    ├── llm_service.py           # call_llm() → dispatche vers call_gemini_llm (fallback auto Groq sur 429)
     ├── profile_service.py       # ProfileService.get_traveller_profile()
     ├── weather_service.py
     ├── Map_service.py
@@ -382,7 +378,7 @@ Dataclass définissant le contrat d'un node LLM :
 class NodeConfig:
     name: str
     node_type: str      # "technical" | "llm_agent" | "tool_node" | "conversation"
-    provider: str       # "groq" | "ollama"
+    provider: str       # "gemini" | "groq"
     model: Optional[str]
     temperature: float
     max_tokens: int
@@ -402,46 +398,48 @@ TypedDict central — source unique de vérité. Champs principaux :
 | Profil | `profile_data` |
 | Contexte fusionné | `merged_context` |
 | Clarification | `missing_required`, `missing_optional`, `blocking_fields`, `suggestion_mode`, `decision_confidence`, `clarification_needed`, `clarification_question`, `clarification_focus`, `clarification_type` |
-| Routage | `next_action` |
-| Disponibilité | `traveller_available`, `availability_result` |
+| Routage | `next_action`, `requested_services` |
+| Disponibilité | `traveller_available`, `availability_result`, `trip_position`, `booking_anchors` |
 | Météo | `weather_context`, `weather` |
-| Sémantique | `semantic_keywords`, `semantic_tags`, `semantic_query` |
+| Sémantique | `semantic_keywords`, `semantic_tags`, `semantic_query`, `global_keywords`, `contextual_keywords` |
+| **Orchestration** | **`orchestrator_constraints`** (dict par service → filtres injectés vers domain nodes) · **`orchestrator_reasoning`** (trace LLM ou "rules:...") |
 | Recommandations | `hotel_candidates`, `restaurant_candidates`, `activity_candidates`, `flight_candidates`, `candidates`, `ranked_results`, `recommendations`, `itinerary` |
-| Réponse | `final_answer` |
+| Planning journée | `day_skeleton`, `day_plan` |
+| Réponse | `final_answer`, `information_context` |
+| Apprentissage | `liked_types`, `rejected_types`, `session_interactions` |
 | Technique | `errors` (`Annotated[List, operator.add]`), `node_metrics` (`Annotated[List, operator.add]`) |
 
-### Configurations LLM (`nodes/definitions.py`)
+### Configurations LLM (`config/definitions.py`)
 
-> Configuration actuelle : **Groq (free tier)** — migration future vers Ollama Cloud Pro ($20/mois) documentée dans `definitions.py`.
+| Config | Provider actuel | Modèle | RPM/TPM | Usage |
+|--------|----------------|--------|---------|-------|
+| `INTENT_CLASSIFIER_CONFIG` | **gemini** | gemini-2.0-flash (Gemini Flash) | 15 RPM / 250K TPM | Classification d'intention + extraction contraintes JSON |
+| `SEMANTIC_CONFIG` | **gemini** | gemini-2.0-flash | 15 RPM / 250K TPM | Extraction keywords sémantiques + tags |
+| `ORCHESTRATOR_CONFIG` | **gemini** | **gemini-3.1-flash-lite** | 15 RPM / 250K TPM | **Orchestration hybride** (temp=0.0, max_tokens=600, cache=False) |
+| `RANKING_CONFIG` | groq | llama-3.1-8b-instant | 30K TPM | Ranking (Python pur, config de secours uniquement) |
+| `DAY_PLANNER_CONFIG` | **gemini** | gemini-2.0-flash | 15 RPM / 250K TPM | Planification journalière contextuelle |
+| `RESPONSE_CONFIG` | **gemini** | gemini-2.0-flash | 15 RPM / 250K TPM | Réponse clarification (Agent 1) |
+| `RECOMMENDATION_RESPONSE_CONFIG` | **gemini** | gemini-2.0-flash | 15 RPM / 250K TPM | Présentation recommandations (Agent 2) |
 
-| Config | Provider | Modèle actuel (Groq) | TPM | Usage |
-|--------|----------|----------------------|-----|-------|
-| `INTENT_CLASSIFIER_CONFIG` | groq | llama-3.3-70b-versatile | 6K | Classification d'intention |
-| `SEMANTIC_CONFIG` | groq | meta-llama/llama-4-scout-17b-16e-instruct | 30K | Extraction sémantique |
-| `RANKING_CONFIG` | groq | llama-3.1-8b-instant | 30K | Ranking (Python pur, config secours) |
-| `DAY_PLANNER_CONFIG` | groq | meta-llama/llama-4-scout-17b-16e-instruct | 30K | Planification journalière |
-| `RESPONSE_CONFIG` | groq | llama-3.3-70b-versatile | 6K | Réponse clarification (Agent 1) |
-| `RECOMMENDATION_RESPONSE_CONFIG` | groq | meta-llama/llama-4-scout-17b-16e-instruct | 30K | Présentation recommandations (Agent 2) |
+> **Migration Gemini (2026-07-28) :** tous les nodes LLM sont passés de Groq à Gemini (Google AI Studio, gratuit, 1500 req/jour). Fallback automatique Gemini → Groq sur `429 RESOURCE_EXHAUSTED` dans `llm_service.py::call_llm()`.
+> **`ORCHESTRATOR_CONFIG`** utilise `gemini-3.1-flash-lite` (modèle plus léger, adapté à la tâche de routage courte — 600 tokens max vs les prompts longs des autres nodes).
 
 #### Justification des choix de modèles — décisions documentées pour le rapport
 
-**`llama-3.3-70b-versatile` → intent_classifier + final_response**
-Modèle 70B dense de Meta. Choisi pour les tâches nécessitant une compréhension fine du français et une classification d'intention précise. Température 0.0 pour classification déterministe. Limite : 6K TPM sur free tier — acceptable car ces nodes ne s'exécutent qu'une fois par requête avec des prompts courts (<800 tokens).
+**`gemini-2.0-flash` → tous les nodes LLM sauf orchestrator**
+Modèle principal de Google AI Studio. Retenu après migration de Groq (2026-07-28) : `meta-llama/llama-4-scout-17b-16e-instruct` avait été retiré du catalogue Groq (HTTP 404), cassant silencieusement 3 nodes. Gemini 2.0 Flash offre 1500 req/jour (gratuit), limite par minute raisonnable, et supporte les sorties JSON structurées pour tous les nodes avec `response_format`.
 
-**`meta-llama/llama-4-scout-17b-16e-instruct` → semantic_node + day_planner + recommendation_response**
-Architecture MoE (Mixture of Experts) : 17B paramètres totaux, 16 experts activés sélectivement. Qualité proche d'un 70B dense sur les tâches de génération structurée, mais limite TPM de 30K (5× supérieure au 70B). Choisi pour les nodes avec des prompts longs (>2000 tokens) ou des sorties JSON structurées complexes.
-
-> **Décision documentée — semantic_node (2026-07-03) :**
-> Le modèle initial `llama-3.1-8b-instant` (8B params) a été remplacé par `llama-4-scout-17b-16e-instruct` suite à un bug critique : le modèle 8B, confronté au prompt de 300 lignes du `semantic_node` (incluant des sections PROCESSING: avec logique conditionnelle), générait du code Python (`def process_intent(merged_context, weather_context)`) au lieu de JSON. Cause : le modèle 8B ne distingue pas les instructions *décrivant* une logique (à exécuter mentalement) des instructions *demandant* du code. Le modèle 17B MoE suit correctement cette distinction. Validation : 0 erreur `Semantic LLM error` après migration, 26/28 assertions PASS (les 2 restantes = Scénario 8 / 401 API indépendant).
+**`gemini-3.1-flash-lite` → orchestrator uniquement**
+Modèle plus léger, adapté au routage : prompt court (600 tokens max), décision déterministe (temp=0.0), 15 RPM suffisants car l'orchestrateur n'est activé qu'en mode LLM (voyage en cours / repas inclus / dernier jour). Le modèle lite réduit la latence sur ce chemin critique.
 
 **`llama-3.1-8b-instant` → ranking (config de secours)**
-Modèle léger 8B. Utilisé uniquement comme configuration de secours pour le ranking node, qui est en réalité implémenté en Python pur (pas d'appel LLM). Le modèle n'est jamais appelé en production normale.
+Non utilisé en production (ranking = Python pur). Déclaré dans `definitions.py` comme fallback de configuration uniquement.
 
-**Migration future → Ollama Cloud Pro ($20/mois)**
-Voir table complète dans `app/config/definitions.py`. Les modèles Groq actuels seront remplacés par `gpt-oss:120b` (équivalent GPT-4o) et `gemini-3-flash-preview` selon les nodes.
+**Fallback automatique Gemini → Groq** (implémenté dans `llm_service.py::call_llm()`)
+Sur `429 RESOURCE_EXHAUSTED` Gemini, basculement transparent vers `llama-3.3-70b-versatile` Groq. Les deux quotas se complètent au lieu d'être un point de défaillance unique.
 
 ### Service LLM (`services/llm_service.py`)
-`call_llm(prompt, model, provider, ...)` dispatche vers `call_groq_llm` ou `call_ollama_llm`. Client Ollama initialisé à l'import — **plante si `OLLAMA_API_KEY` est None** (voir bugs connus).
+`call_llm(prompt, model, provider, ...)` dispatche vers `call_gemini_llm` (principal) ou `call_groq_llm` (fallback sur 429). Supporte `response_format="json"` pour les sorties structurées.
 
 ## APIs Externes
 | Service | Variable d'env | Auth |
@@ -450,8 +448,9 @@ Voir table complète dans `app/config/definitions.py`. Les modèles Groq actuels
 | Profil voyageur | `TRAVELLER_MANAGEMENT/{traveller_id}` | Bearer JWT |
 | OpenWeather | `OPENWEATHER_BASE_URL` | `OPENWEATHER_API_KEY` |
 | Google Maps | `GOOGLE_MAPS_BASE_URL` | `GOOGLE_MAPS_API_KEY` |
-| Groq LLM | SDK Groq | `GROQ_API_KEY` |
-| Ollama LLM | `OLLAMA_BASE_URL` | Bearer `OLLAMA_API_KEY` |
+| Gemini LLM (principal) | SDK Google AI | `GEMINI_API_KEY` |
+| Groq LLM (fallback) | SDK Groq | `GROQ_API_KEY` |
+| SerpApi (restaurants Tier 2) | `serpapi.com` | `SERPAPI_KEY` |
 
 ## Schémas d'Intention (`schemas/intent_schema.py`)
 
@@ -484,13 +483,13 @@ Décision :
 primary_intent                     → suggestion_mode      → prochaine étape
 ────────────────────────────────────────────────────────────────────────────
 greeting / unsupported             → (pas de clarification) → final_response
-travel_question                    → exploratory/semi/precise → final_response
-flight_recommendation              → vérif. contraintes    → flight_node (TODO)
-accommodation_recommendation       → vérif. contraintes    → hotel_node (TODO)
-restaurant_recommendation          → vérif. contraintes    → restaurant_node (TODO)
-activity_recommendation            → vérif. contraintes    → activity_node (TODO)
-day_planning                       → vérif. contraintes    → day_planner (TODO)
-trip_package_recommendation        → vérif. contraintes    → orchestrator (TODO)
+travel_question / booking_question → information_node      → final_response
+flight_recommendation              → vérif. contraintes    → flight_node
+accommodation_recommendation       → vérif. contraintes    → hotel_node
+restaurant_recommendation          → vérif. contraintes    → restaurant_node
+activity_recommendation            → vérif. contraintes    → activity_node
+day_planning                       → day_skeleton (stream) → orchestrator → day_planner
+trip_package_recommendation        → day_skeleton (stream) → orchestrator → tous les domaines
 ```
 
 ## Deux Types d'Utilisateurs
@@ -544,7 +543,7 @@ La distinction se fait via l'API interne `findTravellerId(user_id)` :
 - Dates et disponibilité obligatoires
 - APIs internes agence en priorité absolue
 
-## Pipeline Détaillé — 17 Étapes
+## Pipeline Détaillé — 19 Nodes, 5 Phases
 
 ### Structure Logique
 ```
@@ -573,10 +572,10 @@ Apprentissage utilisateur (feedback logger, profile writer)
 
 | Étape | Node | Type | Rôle |
 |-------|------|------|------|
-| 1 | `greeting_node` | LLM léger | Réception requête, initialisation session conversationnelle |
+| 1 | `greeting_node` | Python technique | Normalise le query (`strip().lower()`) |
 | 2 | `session_bootstrap` | Python technique | Appelle `findTravellerId(user_id)` → résout le `traveller_id` |
-| 3 | `intent_classifier_node` | LLM (Groq) | Classifie l'intent + extrait les contraintes — en parallèle avec étape 4 |
-| 4 | `profile_loader_node` | API interne | Charge le profil voyageur complet — en parallèle avec étape 3 |
+| 3 | `intent_classifier_node` | LLM (Gemini) | Classifie l'intent + extrait les contraintes — en parallèle avec étape 4 |
+| 4 | `profile_loader_node` | API+MongoDB | Charge le profil voyageur (cache MongoDB TTL 30j, sinon API agence) — en parallèle avec étape 3 |
 | 5 | `context_merger_node` | Python technique | Fusionne intent_result + profile_data → merged_context |
 | 6 | `clarification_checker_node` | Python rule-based | Détecte champs obligatoires manquants, détermine le mode |
 
@@ -605,8 +604,10 @@ Apprentissage utilisateur (feedback logger, profile writer)
 
 | Étape | Node | Type | Rôle |
 |-------|------|------|------|
-| 7 | `semantic_node` | LLM (Ollama) | Extrait keywords, tags, requête sémantique |
-| 8 | `availability_checker_node` | API interne | Vérifie disponibilité voyageur et offres agence |
+| 7a | `day_skeleton_node` | Python technique | Squelette journée <10ms, streamé immédiatement (SKELETON_INTENTS) |
+| 7b | `weather_node` | API externe | OpenWeather → weather_context |
+| 8 | `semantic_node` | LLM (Gemini) | Extrait global_keywords, semantic_tags, semantic_query |
+| 9a | `availability_checker_node` | API interne | Vérifie trip actif, trip_position, booking_anchors, destination |
 
 ---
 
@@ -614,11 +615,11 @@ Apprentissage utilisateur (feedback logger, profile writer)
 
 | Étape | Node | Type | Rôle |
 |-------|------|------|------|
-| 9 | `orchestrator_node` | LLM (Ollama) | Sélectionne les agents domaine à activer selon l'intent |
-| 10 | `hotel_node` | API/Service | Candidats hébergement (TODO) |
-| 11 | `flight_node` | API/Service | Candidats vols (TODO) |
-| 12 | `restaurant_node` | API/Service | Candidats restaurants (TODO) |
-| 13 | `activity_node` | API/Service | Candidats activités (TODO) |
+| 9b | `orchestrator_node` | LLM hybride (Gemini 3.1 Flash Lite) | Règles 80% / LLM 20% (voyage actif) — injecte `orchestrator_constraints` par service |
+| 10 | `hotel_node` | API interne | Candidats hébergement (Tier1 partenaires + Tier2 catalogue 746 hôtels) |
+| 11 | `flight_node` | API interne | Candidats vols (272 vols + enrichissement destination tunisia_destinations) |
+| 12 | `restaurant_node` | MongoDB + SerpApi | Candidats restaurants (MongoDB Atlas Search 26 575 docs + SerpApi fallback) |
+| 13 | `activity_node` | API+MongoDB | Candidats activités (API interne + MongoDB 2 345 docs, ThreadPoolExecutor) |
 
 ---
 
@@ -626,11 +627,13 @@ Apprentissage utilisateur (feedback logger, profile writer)
 
 | Étape | Node | Type | Rôle |
 |-------|------|------|------|
-| 14 | `constraint_validator_node` + `data_merger_node` | Python | Valide et fusionne les candidats |
-| 14b | `ranking_node` | LLM (Ollama) | Classe selon score = 70% user + 30% business |
-| 14c | `day_planner_node` | LLM (Ollama) | Génère un itinéraire jour par jour — prend en compte horaires, distances, météo, budget |
-| 14d | `recommendation_composer_node` | Python | Formate les recommandations finales |
-| 15 | `final_response_node` | LLM (Groq) | Génère réponse naturelle (FR ou EN), inclut références de réservation si disponibles, style adapté au user_type |
+| 14a | `data_merger_node` | Python technique | Fusionne les 4 listes de candidats, priorité par intent |
+| 14b | `constraint_validator_node` | Python technique | Filtre dur exclusif — seul point d'exclusion (`is_available=False`) |
+| 14c | `ranking_node` | Python technique | Scoring V2 multiplicatif : user_score × business_boost × availability_factor |
+| 14d | `day_planner_node` | LLM (Gemini) | Itinéraire contextualisé (anchors immuables, trip_position, météo) |
+| 14e | `recommendation_response_node` | LLM (Gemini) | Agent 2 — présente ranked_results, sélection slot-driven |
+| 15a | `information_node` | Python rule-based | Pipeline informatif (travel_question, booking_question) — 5 subtypes, 0 LLM |
+| 15b | `final_response_node` | LLM (Gemini) | Agent 1 — clarification / greeting / réponse informative |
 
 ---
 
@@ -638,17 +641,18 @@ Apprentissage utilisateur (feedback logger, profile writer)
 
 | Étape | Node | Type | Rôle |
 |-------|------|------|------|
-| 16 | `feedback_logger_node` | Python/DB | Extrait l'avis utilisateur — enregistre : aimé, ignoré, rejeté |
-| 17 | `profile_writer_node` | API interne | Met à jour le profil selon feedback — enrichissement implicite et continu des préférences |
+| 16 | `feedback_logger_node` | Python | Mine liked/rejected_types depuis conversation_history (session_memory.py, fenêtre <5 mots) |
+| 17 | `profile_writer_node` | Redis | Persiste interactions:{traveller_id} → Redis TTL 30j (INTERACTIONS_REDIS_PREFIX) |
 
-**Étape 16 — Feedback Logger Node** `[Python/DB]`
-- Extrait l'avis utilisateur sur la recommandation
-- Enregistre : aimé, ignoré, rejeté
+**Étape 16 — Feedback Logger Node** `[Python]`
+- Mine implicitement liked/rejected types depuis conversation_history
+- Fenêtre < 5 mots, neutralisateurs ("pas mal"), rejet prime sur like
+- Retourne `session_interactions` pour profile_writer
 
-**Étape 17 — Profile Writer Node** `[Python/API interne]`
-- Met à jour le profil selon feedback
-- Enrichit préférences pour futures recommandations
-- Apprentissage implicite et continu
+**Étape 17 — Profile Writer Node** `[Redis]`
+- Merge cumulatif : liked_types / rejected_types cross-session
+- `ranking_node` lit ces préférences → ranked_score=0 pour types rejetés
+- TTL 30j : `INTERACTIONS_REDIS_TTL_SECONDS` dans `settings.py`
 
 ## Convention Visuelle des Nœuds (Figures/Diagrammes)
 | Couleur | Type de nœud |
@@ -671,32 +675,27 @@ Couche 3 — Validation et modélisation
   Schémas Pydantic pour chaque échange inter-agents
 
 Couche 4 — Multi-agents LangGraph
-  Pipeline complet des 17 étapes (StateGraph)
+  Pipeline complet 19 nodes, 5 phases (StateGraph)
 ```
 
 ## Technologies
 | Rôle | Technologie | Détail |
 |------|------------|--------|
-| LLM principal | Groq | llama-3.3-70b-versatile — gratuit, rapide (compréhension + réponse) |
-| LLM secondaire | Ollama Cloud | gpt-oss:120b — ~20$/mois (orchestration, ranking, day planning) |
-| Orchestration | LangGraph | StateGraph avec fan-out parallèle |
+| LLM principal | Gemini | gemini-2.0-flash + gemini-3.1-flash-lite (orchestrator) — Google AI Studio gratuit |
+| LLM fallback | Groq | llama-3.3-70b-versatile — activé automatiquement sur 429 Gemini |
+| Orchestration | LangGraph | StateGraph avec fan-out parallèle, 19 nodes |
 | Validation | Pydantic v2 | Contrats de données entre agents |
-| APIs externes | OpenWeather, Google Maps, restaurants tiers | Météo, cartographie, offres |
+| Base de données | MongoDB Atlas | restaurant_collection (26 575 docs) + activities_collection (2 345 docs) + profile cache (TTL 30j) |
+| APIs externes | OpenWeather, SerpApi, MongoDB Atlas Search | Météo, restaurants Tier 2, recherche sémantique |
 | APIs internes | Booking agence, profil voyageur, findTravellerId | Réservations, profil enrichi |
 | Langage | Python 3.13 | venv1 |
 
-- **LLM** : Ollama Cloud ~20$/mois (`gpt-oss:120b`) + Groq gratuit (`llama-3.3-70b-versatile`)
-- **Orchestration** : LangGraph (StateGraph)
-- **Validation** : Pydantic v2
-- **APIs externes** : OpenWeather, Google Maps, restaurants tiers
-- **APIs internes** : booking agence, profil voyageur, `findTravellerId`
-- **Langage** : Python 3.13
-
 ## Périmètre et Perspectives
-- **Implémenté** : sous-graphe Recommendation — pipeline complet 17 étapes (architecture définie, nodes compréhension opérationnels)
+- **Implémenté** : pipeline complet 19 nodes, 5 phases opérationnel (8/8 PASS E2E + 4/4 PASS orchestrateur hybride, 2026-07-31)
 - **Perspectives** :
-  - Sous-graphe Travel Info (questions générales sur la Tunisie)
-  - Sous-graphe Assistant Général
+  - Quiz en-conversation (remplace clarification texte par un pool d'options rule-based)
+  - Collaborative Filtering (infrastructure préparée dans `cf_scorer.py` — activation selon volume utilisateurs)
+  - Recherche vectorielle (`paraphrase-multilingual-MiniLM-L12-v2`, 384d)
 
 ## Démarche de Création d'un Agent — À SUIVRE OBLIGATOIREMENT
 
@@ -706,13 +705,13 @@ Toute création d'un nouveau node dans ce projet doit suivre ces **6 étapes dan
 
 ### Étape 1 — Définir le NodeConfig
 
-**Node LLM** → déclarer dans `app/nodes/definitions.py` :
+**Node LLM** → déclarer dans `app/config/definitions.py` :
 ```python
 MY_NODE_CONFIG = NodeConfig(
     name="my_node",
     node_type="llm_agent",       # llm_agent | conversation | comprehension
-    provider="groq",             # groq | ollama
-    model="llama-3.3-70b-versatile",
+    provider="gemini",           # gemini | groq
+    model="gemini-2.0-flash",
     temperature=0.0,
     max_tokens=800,
     response_format="json",
@@ -773,7 +772,7 @@ Créer dans `app/nodes/<phase>/my_node.py` :
 ```python
 from typing import Dict, Any
 from app.nodes.core.Base_node import BaseNode
-from app.nodes.definitions import MY_NODE_CONFIG       # LLM node
+from app.config.definitions import MY_NODE_CONFIG       # LLM node
 from app.prompts.<phase>.my_node_prompt import MY_NODE_PROMPT
 from app.schemas.my_node_schema import MyNodeOutput
 from app.nodes.utility.json_parser import parse_json_safely
@@ -1244,13 +1243,13 @@ INTERNAL_API_BASE=https://api.staging.zenifytrip.com
 | Service Python | Endpoint(s) utilisé(s) | Statut |
 |----------------|------------------------|--------|
 | `session_bootstrap.py` | `GET /api/travellers/UserId/{user_id}` | ✅ Implémenté |
-| `profile_service.py` | `GET /api/traveller-management/{traveller_id}` | ✅ Implémenté (bug async) |
+| `profile_service.py` | `GET /api/traveller-management/{traveller_id}` | ✅ Implémenté |
 | `hotel_service.py` | `GET /api/hotels` + `GET /api/hotel-services` + `GET /api/zones` | ✅ Implémenté |
 | `flight_service.py` | `GET /api/flights` + `GET /api/airports` | ✅ Implémenté |
-| `activity_service.py` | `GET /api/bookings` + `GET /api/activities/{id}` | ❌ À implémenter |
-| `restaurant_service.py` | Google Places API (Approche A) — source externe | ✅ Implémenté |
-| `availability_service.py` | `GET /api/bookings?travellerId={id}` | ❌ À implémenter |
-| `logging_service.py` | POST vers endpoint feedback (à confirmer) | ❌ À implémenter |
+| `activity_service.py` | `GET /api/bookings` + `GET /api/activities/{id}` + MongoDB | ✅ Implémenté |
+| `restaurant_service.py` | MongoDB Atlas Search Tier1 + SerpApi Tier2 fallback | ✅ Implémenté |
+| `availability_service.py` | `GET /api/bookings?travellerId={id}` — trip_position + booking_anchors | ✅ Implémenté |
+| `profile_writer_node.py` | Redis `interactions:{traveller_id}` TTL 30j | ✅ Implémenté (Phase 5) |
 
 ---
 
@@ -1319,7 +1318,7 @@ Chaque candidat inclut `"tier": "partner" | "catalogue"` pour que le Ranking Age
 | `weather` | 2h | `TTL_WEATHER` |
 | `maps` | 12h | `TTL_MAPS` |
 | `activities` | 24h | `TTL_ACTIVITIES` |
-| `profile` | 1h | `TTL_PROFILE` |
+| `profile` (MongoDB TTL index) | 30j | `PROFILE_CACHE_MAX_TTL_SECONDS` dans settings.py — collection `traveller_profile_cache`, index `expires_at` |
 | `flights` | 6h | `TTL_FLIGHTS` |
 | `airlines` | 24h | `TTL_AIRLINES` |
 | `airports` | 24h | `TTL_AIRPORTS` |
@@ -1622,15 +1621,6 @@ START → [greeting] + [session_bootstrap]              ← fan-out parallèle
       → (fan-in) [data_merger] → [ranking_node] → [final_response] → END
 ```
 
-#### À faire avant tests end-to-end
-
-- [ ] Implémenter `day_planner_node` (prend `ranked_results`, génère itinéraire jour/jour)
-- [ ] Implémenter `recommendation_composer_node` (formate les recommandations finales)
-- [ ] Câbler `ranking_node → day_planner_node → recommendation_composer_node → final_response`
-- [ ] Test end-to-end Phase 1→4 complet avec ranking
-
----
-
 ---
 
 ### VERSION 5 — Agent de Réponse Recommandation + Corrections Architecturales (session 2026-06-13)
@@ -1688,7 +1678,7 @@ orchestrator → [] (travel_question, unsupported, etc.)
 
 Si `candidates = []`, `recommendation_response_node` **ne dit jamais "pas de résultats"**. Le LLM utilise sa connaissance de la Tunisie pour recommander des vrais endroits connus selon la destination et l'intent. Seule exception : si la destination est totalement inconnue → demande de clarification.
 
-#### Topologie graphe VERSION 5 (finale)
+#### Topologie graphe VERSION 5 (obsolète — voir VERSION 9 pour la topologie actuelle)
 
 ```
 START → [greeting] + [session_bootstrap]
@@ -1732,34 +1722,24 @@ START → [greeting] + [session_bootstrap]
 | `ranking_node` | `nodes/recommendation/postprocessing/ranking_node.py` | ✅ | ✅ |
 | `final_response` | `nodes/conversation/final_response_node.py` | ✅ | ✅ |
 | `recommendation_response` | `nodes/recommendation/postprocessing/recommendation_response_node.py` | ✅ | ✅ |
+| `day_planner` | `nodes/recommendation/postprocessing/day_planner_node.py` | ✅ | ✅ |
+| `day_skeleton` | `nodes/recommendation/postprocessing/day_skeleton_node.py` | ✅ | ✅ |
+| `information_node` | `nodes/conversation/information_node.py` | ✅ | ✅ |
+| `feedback_logger` | `nodes/shared/feedback_logger_node.py` | ✅ | ✅ |
+| `profile_writer` | `nodes/user_profile/profile_writer_node.py` | ✅ | ✅ |
 
-#### Nodes PAS encore implémentés
-
-| Node | Fichier | Phase | Priorité | Description |
-|------|---------|-------|----------|-------------|
-| `day_planner_node` | `nodes/recommendation/postprocessing/day_planner_node.py` | 4 | Haute | Génère un itinéraire jour/jour depuis `ranked_results` (matin → après-midi → soir) — LLM Groq |
-| `recommendation_composer_node` | `nodes/recommendation/postprocessing/recommendation_composer_node.py` | 4 | Moyenne | Formate les recommandations en structure JSON riche — remplacé fonctionnellement par `recommendation_response_node` |
-| `profile_writer_node` | `nodes/user_profile/profile_writer_node.py` | 5 | Moyenne | Met à jour le profil voyageur selon le feedback implicite (clics, acceptations) |
-| `feedback_logger_node` | `nodes/shared/feedback_logger_node.py` | 5 | Moyenne | Enregistre les interactions (aimé / ignoré / rejeté) pour apprentissage continu |
-| `error_handler_node` | `nodes/shared/error_handler_node.py` | Transverse | Basse | Centralize la gestion d'erreurs du pipeline — actuellement gérée par BaseNode.fallback() |
-| `profile_cache_reader_node` | `nodes/user_profile/profile_cache_reader_node.py` | 1 | Basse | Lecture profil depuis cache local — redondant avec profile_loader + cache_service |
-
-> `recommendation_composer_node` est fonctionnellement remplacé par `recommendation_response_node` (Agent 2). Le fichier peut rester vide.
-
-#### Bugs Critiques identifiés (analyse session 2026-06-13)
+#### Bugs identifiés (analyse session 2026-06-13, non encore corrigés)
 
 | # | Fichier | Bug | Sévérité |
 |---|---------|-----|----------|
-| 1 | `llm_service.py:21` | `"Bearer " + None` → crash si OLLAMA_API_KEY absente | 🔴 |
-| 2 | `definitions.py` | ~~modèles `openai/gpt-oss-120b` invalides chez Groq~~ | ✅ Corrigé |
-| 3 | `base_node.py:116` | `metrics_patch` construit mais jamais inclus dans le return | 🔴 |
-| 4 | `final_response_node.py:170` | `return {**state, ...}` — viole règle LangGraph | 🔴 |
-| 5 | `final_response_node.py:37` | `state.get("constraints")` clé inexistante dans GraphState | 🔴 |
-| 6 | `main.py:65` | `state.update(result)` après append history → écrase les nouveaux messages | 🔴 |
-| 7 | `main.py` | État initial incomplet (node_metrics manquant, utiliser `build_initial_state()`) | 🟠 |
-| 8 | `profile_loader_node.py:49` | Destination = nom aéroport (pas une ville) → matching zones échoue | 🟠 |
-| 9 | `profile_loader_node.py:55` | `accommodations[0]` sans filtre statut → peut prendre une réservation annulée | 🟠 |
-| 10 | `availability_service.py:218` | `if not results:` — dead code, branche jamais atteinte | 🟠 |
+| 1 | `base_node.py:116` | `metrics_patch` construit mais jamais inclus dans le return | 🔴 |
+| 2 | `final_response_node.py:170` | `return {**state, ...}` — viole règle LangGraph | 🔴 |
+| 3 | `final_response_node.py:37` | `state.get("constraints")` clé inexistante dans GraphState | 🔴 |
+| 4 | `main.py:65` | `state.update(result)` après append history → écrase les nouveaux messages | 🔴 |
+| 5 | `main.py` | État initial incomplet (node_metrics manquant, utiliser `build_initial_state()`) | 🟠 |
+| 6 | `profile_loader_node.py:49` | Destination = nom aéroport (pas une ville) → matching zones échoue | 🟠 |
+| 7 | `profile_loader_node.py:55` | `accommodations[0]` sans filtre statut → peut prendre une réservation annulée | 🟠 |
+| 8 | `availability_service.py:218` | `if not results:` — dead code, branche jamais atteinte | 🟠 |
 
 ---
 
@@ -1819,9 +1799,9 @@ START → [greeting] + [session_bootstrap]
 
 #### Restant après VERSION 6
 
-- [ ] Phase 5 — mémoire Redis cross-session (`interactions:{traveller_id}`) : le point d'injection (`session_signals`) est déjà en place
+- ✅ Phase 5 — mémoire Redis cross-session (`interactions:{traveller_id}`) — commité `9f83736` (2026-07-29)
 - [ ] `app/test_e2e.py` scénario 8 (USER RÉEL) dépend du token API staging — il expire régulièrement
-- [ ] B1 `parse_json_safely` (sanitizer newlines) · B2 retry Groq 429 · TPM Groq Dev Tier pour 100 users simultanés
+- [ ] B1 `parse_json_safely` (sanitizer newlines) · B2 retry Gemini/Groq 429 · quota RPM Gemini Free Tier pour 100 users simultanés
 
 ---
 
@@ -1995,19 +1975,386 @@ Verdict global : **les poids de haut niveau sont défendables — les bugs ident
 
 ---
 
-## Bugs Connus / TODO (par priorité)
-1. **`llm_service.py` crash à l'import** — `"Bearer " + os.getenv("OLLAMA_API_KEY")` plante si `OLLAMA_API_KEY` est `None`
-2. **`.env` syntaxe bash** — les lignes `export OLLAMA_API_KEY=...` et `export OLLAMA_BASE_URL=...` utilisent la syntaxe bash, ignorée par python-dotenv
-3. ~~**ProfileService async**~~ ✅ Résolu — `get_traveller_profile` est déjà synchrone (`requests.get`)
-4. **`OLLAMA_BASE_URL` incorrecte** — défaut `"https://ollama.com"` au lieu d'un vrai endpoint API
-5. ~~**`context_merger_node.py` mutation d'état**~~ ✅ Résolu — retourne uniquement `{"merged_context": merged}`
-6. **`main.py` état incomplet** — utiliser `build_initial_state()` au lieu du dict manuel ; `state.update(result)` écrase l'historique
-7. ~~**Routage conditionnel désactivé**~~ ✅ Résolu (2026-06-08) — `orchestrator_node` câblé, fan-out conditionnel actif dans `builder.py`
-8. ~~**`activity_node.py` stub**~~ ✅ Résolu (2026-06-13) — two-source, ThreadPoolExecutor, rapidfuzz dedup, 3/3 PASS
-9. ~~**`ranking_node.py` manquant**~~ ✅ Résolu (2026-06-13) — node Python pur, poids 70/30 dans settings.py
-10. ~~**`definitions.py` modèles invalides**~~ ✅ Résolu (2026-06-13) — `llama-3.3-70b-versatile` partout
-11. **`final_response_node.py`** — `return {**state, ...}` viole règle LangGraph + clé `constraints` inexistante
-12. ~~**`session_bootstrap.py` USER NATIF**~~ ✅ Résolu (2026-07-29, commit `8e92b57`) — retournait error dict au lieu de native state
+### VERSION 9 — Orchestrateur Hybride Intelligent ✓ (session 2026-07-31)
+
+**Objectif :** Remplacer le `orchestrator_node` Python pur (rule-based) par un orchestrateur hybride capable de raisonner sur le contexte de voyage actif (repas inclus, dernier jour, anchors du squelette) et d'injecter des **contraintes par service** vers les domain nodes en aval.
+
+**Problème résolu :** L'orchestrateur VERSION 5 (règles pures) activait les mauvais services dans les cas critiques :
+- USER RÉEL All Inclusive → activait `restaurant_node` malgré tous repas inclus
+- Dernier jour départ 14h → activait `restaurant_node` pour un déjeuner temporellement impossible
+- Day planning → tous services activés sans contrainte de durée/slot → activités trop longues proposées
+
+#### A. Design Hybride — Règles 80% / LLM 20%
+
+```
+_needs_llm(trip_is_ongoing, is_last_day, meal_plan, has_anchors) → bool
+          │
+          ├── False → _rules_decision()    ← 0 token LLM, 0ms latence additionnelle
+          │   Déclenché : USER NATIF, pas de voyage actif, intent simple
+          │   Logique : INTENT_TO_SERVICES + secondary_intents + suggestion_mode
+          │
+          └── True  → _llm_decision()     ← Gemini 3.1 Flash Lite, max_tokens=600
+              Déclenché quand l'un au moins est vrai :
+              • trip_is_ongoing=True
+              • is_last_day=True
+              • meal_plan non nul (AI/HB/FB/BB/RO)
+              • day_skeleton contient des anchors
+```
+
+**Justification du seuil 80/20 :**
+La majorité des requêtes d'une agence de voyage sont des USER NATIF en phase de découverte (trip_is_ongoing=False, pas de repas inclus, pas d'anchors) → chemin règles pur, 0 token LLM. Le LLM n'est activé que pour les voyageurs déjà en séjour avec un contexte de booking riche — précisément le cas où une règle statique créerait une mauvaise expérience utilisateur (recommander un repas payant à quelqu'un en All Inclusive).
+
+**Résilience intégrée :** fallback automatique `_rules_decision()` si le LLM échoue (`try/except` dans `_llm_decision`) — l'orchestrateur ne peut jamais bloquer le pipeline.
+
+#### B. `orchestrator_constraints` — Contrat de flux vers les domain nodes
+
+Nouveau champ `GraphState` produit par l'orchestrateur et consommé par les domain nodes :
+
+```python
+orchestrator_constraints: Optional[Dict[str, Any]]
+# Exemple sortie S1 (HB dernier jour, départ 14h) :
+# {
+#   "activity_node": {
+#     "destination": "djerba",
+#     "max_duration_hours": 2.0,       ← fenêtre calculée : 14:00 - 11:00 - 1h buffer
+#     "is_today": true,                ← filtre dispo temps réel activé
+#     "nearby_hotel": true,            ← priorité activités proches
+#     "exclude_types": ["full_day", "excursion"],  ← types impossibles sur ce créneau
+#     "exclude_activity_ids": []       ← activités déjà bookées à exclure
+#   }
+# }
+#
+# Exemple sortie S4 (AI + intent restaurant explicite) :
+# {
+#   "restaurant_node": {
+#     "destination": "djerba",
+#     "meal_slot": "dinner",           ← créneau précis
+#     "budget_level": "luxury",
+#     "optional_experience": true      ← AI mais intent explicite override
+#   }
+# }
+```
+
+**Règle de lecture dans les domain nodes (pattern défensif) :**
+```python
+orch = (state.get("orchestrator_constraints") or {}).get("activity_node") or {}
+max_h = orch.get("max_duration_hours")   # None si non contraint → aucun filtre
+```
+Si la clé est absente → aucun filtre appliqué, comportement identique à avant.
+
+#### C. Modifications des Domain Nodes
+
+| Node | Modification | Impact opérationnel |
+|------|--------------|---------------------|
+| `activity_node.py` | Lecture `orchestrator_constraints.activity_node` → filtres post-`_dedup()` : `max_duration_hours`, `exclude_activity_ids`, `exclude_types` | Activités trop longues ou déjà bookées exclues avant ranking |
+| `restaurant_node.py` | `_resolve_establishment_types()` priorité 2 = `meal_slot` de `orchestrator_constraints.restaurant_node` (entre préférence explicite et heure courante) | Filtre `establishment_types` correct selon repas du jour |
+
+**Règle de conception** : ces filtres sont des **filtres pré-ranking**, jamais des exclusions de scoring. La règle d'exclusion dure reste dans `constraint_validator_node` (seul point d'exclusion officiel du pipeline).
+
+#### D. Prompt Orchestrateur V2 — Architecture compacte context-aware
+
+Le prompt `orchestrator_prompt.py` a été entièrement réécrit pour être context-aware et économe en tokens (`max_tokens=600`) :
+
+| Section | Contenu |
+|---------|---------|
+| GOAL | Rôle précis, ce que l'agent NE FAIT PAS |
+| MEAL PLAN REFERENCE | Tableau AI/FB/HB/BB/RO → flags breakfast/lunch/dinner inclus |
+| AVAILABLE SERVICES RULES | 4 règles : hotel (jamais si trip_is_ongoing), flight (idem), activity (open slots), restaurant (repas libres uniquement, sauf optional_experience) |
+| DAY SKELETON | Instructions de comptage des slots "open" depuis le squelette |
+| DECISION LOGIC | 6 étapes numérotées : analyze trip → count slots → check meal plan → check intent → build services → build constraints |
+| CRITICAL RULES | 5 règles absolues, JSON strict |
+| OUTPUT FORMAT + EXAMPLES | 4 exemples couvrant : HB dernier jour / AI normal / AI+resto explicite / exploratory |
+| INPUTS (bottom) | `{trip_context}`, `{day_skeleton}`, `{intent_context}`, `{session_signals}` |
+
+**Variables injectées :**
+```python
+prompt = ORCHESTRATOR_PROMPT.format(
+    trip_context    = json.dumps({trip_is_ongoing, is_last_day, meal_plan, booked_services, ...}),
+    day_skeleton    = json.dumps(day_skeleton) if day_skeleton else "null",
+    intent_context  = json.dumps({primary_intent, destination, budget_level, interests, ...}),
+    session_signals = json.dumps({rejected_types, liked_types}),
+)
+```
+
+#### E. `OrchestratorOutput` — Schéma Pydantic v2 (`app/schemas/orchestrator_schema.py`)
+
+```python
+VALID_SERVICES = {"hotel_node", "flight_node", "activity_node", "restaurant_node"}
+
+class OrchestratorOutput(BaseModel):
+    requested_services:      List[str]               = []
+    reasoning:               str                     = ""
+    constraints_per_service: Dict[str, Dict[str, Any]] = {}
+    confidence:              float                   = 0.8
+    excluded_services:       Dict[str, str]          = {}   # {service: raison}
+
+    @field_validator("requested_services")
+    @classmethod
+    def only_valid_services(cls, v):
+        return [s for s in (v or []) if s in VALID_SERVICES]  # garde-fou
+```
+
+`excluded_services` : trace explicite des services écartés et pourquoi — exploitable dans les logs et dans le rapport PFE comme démonstration de raisonnement transparent.
+
+#### F. Fichiers créés / modifiés
+
+| Fichier | Opération | Rôle |
+|---------|-----------|------|
+| `app/schemas/orchestrator_schema.py` | ✅ Créé | `OrchestratorOutput` Pydantic v2, garde-fou `VALID_SERVICES` |
+| `app/prompts/recommendation/orchestrator_prompt.py` | ✅ Remplacé | Prompt context-aware compact (4 variables, 4 exemples, `{{` escapés) |
+| `app/config/definitions.py` | ✅ Mis à jour | `ORCHESTRATOR_CONFIG` (gemini, temp=0.0, max_tokens=600, cache_enabled=False) |
+| `app/graph/state.py` | ✅ Mis à jour | `orchestrator_constraints` + `orchestrator_reasoning` dans TypedDict + `build_initial_state()` |
+| `app/nodes/recommendation/orchestration/orchestrator_node.py` | ✅ Réécrit complet | Hybrid : `_needs_llm()`, `_rules_decision()`, `_llm_decision()` |
+| `app/nodes/recommendation/domain/activity_node.py` | ✅ Mis à jour | Filtres post-`_dedup()` depuis `orchestrator_constraints.activity_node` |
+| `app/nodes/recommendation/domain/restaurant_node.py` | ✅ Mis à jour | `meal_slot` override priorité 2 dans `_resolve_establishment_types()` |
+| `app/graph/builder.py` | ✅ Mis à jour | Commentaire `[LLM] Gemini 3.1 Flash Lite — hybrid (règles 80% + LLM si voyage actif)` |
+| `app/test_orchestrator.py` | ✅ Créé | 4 scénarios unitaires — `run_scenario(name, state, checks_fn)` |
+
+#### G. Tests — 4/4 PASS (2026-07-31)
+
+```
+python -m app.test_orchestrator
+```
+
+| Scénario | Chemin | Services retournés | Contraintes clés injectées | Verdict |
+|----------|--------|-------------------|---------------------------|---------|
+| S1 — USER RÉEL HB dernier jour (dép 14h) | LLM | `['activity_node']` | `max_duration_hours=2.0, exclude_types=[full_day,excursion], nearby_hotel=true` | ✅ PASS |
+| S2 — USER RÉEL AI jour normal (activity_recommendation) | LLM | `['activity_node']` | `destination=sousse, is_today=true` | ✅ PASS |
+| S3 — USER NATIF day_planning (pas de voyage) | **Règles** | `['hotel_node','activity_node','restaurant_node']` | destination par service | ✅ PASS |
+| S4 — USER RÉEL AI + restaurant explicite | LLM | `['restaurant_node']` | `optional_experience=true, meal_slot=dinner` | ✅ PASS |
+
+**Trace reasoning LLM S1 :**
+> "Last day with morning_only_departure mode. Departure at 14:00 allows for 2 hours of activity (14:00 - 11:00 - 1:00 buffer). HB plan covers breakfast and dinner — no restaurant needed."
+
+**Performance :**
+- S3 (règles) : 0ms LLM
+- S1/S2/S4 (LLM) : ~1.5s (Gemini 3.1 Flash Lite, 15 RPM free tier)
+
+#### H. Topologie graphe VERSION 9
+
+La topologie `builder.py` est identique à VERSION 8 — le changement est **interne** à `orchestrator_node` et dans le contenu du `GraphState`. Les domain nodes lisent `orchestrator_constraints` depuis le state sans modification du graphe.
+
+```
+semantic_node → [orchestrator] (LLM si contexte actif, règles sinon)
+                      ↓ (fan-out conditionnel — câblage inchangé)
+    hotel_node | flight_node | restaurant_node | activity_node
+         ↑──── lisent orchestrator_constraints depuis state ────↑
+                      ↓ (fan-in)
+    data_merger → constraint_validator → ranking_node → day_planner → recommendation_response
+```
+
+**Nouvelle clé GraphState :**
+```python
+orchestrator_constraints: Optional[Dict[str, Any]]  # par service : {activity_node: {...}, restaurant_node: {...}}
+orchestrator_reasoning:   Optional[str]             # trace reasoning LLM ou "rules: ..."
+```
+
+#### I. Valeur Académique — Contribution pour le Rapport PFE
+
+**Pattern "Hybrid Orchestration"** : aucun des 9 acteurs du benchmark (cf. `etude_de_existant_by_claude_code`) ne documente publiquement un orchestrateur hybride règles/LLM avec injection de contraintes par service. Ce design présente trois propriétés démontrables :
+
+1. **Déterminisme garanti** pour 80% des cas — testable unitairement, auditables, reproductibles
+2. **Raisonnement contextuel explicite** pour 20% des cas — trace `reasoning` dans chaque sortie LLM
+3. **Résilience** : fallback règles automatique si LLM indisponible (timeout, 429, quota) — le pipeline ne peut pas bloquer sur l'orchestrateur
+
+**Lien avec la doctrine "ami local expert" (Day Planner Principe Directeur) :**
+L'orchestrateur hybride est la couche qui rend ce principe implémentable : sans lui, le day planner recevait les mêmes candidats qu'un USER NATIF même pour un voyageur en All Inclusive au dernier jour de son séjour. Avec lui, le day planner reçoit des candidats déjà filtrés et contraints selon la réalité du dossier voyageur.
+
+---
+
+### VERSION 10 — Agent 3 Informatif + Données Vol Personnelles ✓ (session 2026-07-31)
+
+**Objectif :** Compléter le pipeline conversationnel pour les intents `travel_question` et `booking_question` avec un agent dédié (Agent 3) et corriger la réponse aux questions personnelles de voyage ("mon vol est à quelle heure ?").
+
+#### A. Architecture Trois Agents de Réponse
+
+Le pipeline dispose désormais de **3 agents LLM de réponse distincts** selon le chemin :
+
+| Agent | Node | Intent servi | Prompt |
+|-------|------|-------------|--------|
+| **Agent 1** | `final_response_node` | greeting, clarification, unsupported, feedback | `final_response_prompt.py` |
+| **Agent 2** | `recommendation_response_node` | Toutes les recommandations (hotel, vol, resto, activité, day_planning) | `recommendation_response_prompt.py` |
+| **Agent 3** | `informative_response_node` | `travel_question`, `booking_question` | `informative_response_prompt.py` |
+
+**Flux Agent 3 :**
+```
+travel_question / booking_question
+    ↓
+[information_node]      ← Python rule-based, 0 LLM — détecte subtype, assemble resolved_data
+    ↓
+[informative_response]  ← LLM Gemini — Agent 3, présente les données de manière conversationnelle
+    ↓ END
+```
+
+#### B. InformationNode — 6 Subtypes
+
+`information_node` (`app/nodes/conversation/information_node.py`) est **100% Python pur** (0 LLM). Il détecte le sous-type via des frozensets de mots-clés et assemble `information_context` pour Agent 3.
+
+| Subtype | Détection | Source de données | Traitement Agent 3 |
+|---------|-----------|-------------------|--------------------|
+| `follow_up_place` | `_PLACE_KW` + `last_candidates` non vide | `last_candidates` | Localisation/adresse du candidat précédent |
+| `weather` | `_WEATHER_KW` | `weather_context` (live API) ou général | Météo + conseils vestimentaires/activités |
+| `booking_info` | `_BOOKING_KW` + contexte booking disponible | `availability_result` + `booking_anchors` + `profile_data` | Détails réservation, vols, repas inclus |
+| `session_planning` | `_PLANNING_KW` | `last_candidates` / `ranked_results` | Résumé des éléments planifiés (liste numérotée) |
+| `dynamic_factual` | `_DYNAMIC_KW` | Tavily Search API (cache session) | Visa, prix d'entrée, horaires, événements — données live |
+| `factual` | (défaut) | Connaissance LLM stable | Questions de géographie, culture, gastronomie tunisienne |
+
+**Détection `booking_info`** : au moins un de ces 3 contextes doit être présent pour que le subtype soit `booking_info` (et non `factual`) :
+- `availability_result` (posé par `availability_checker`)
+- `booking_anchors` (posé par `availability_checker`)
+- `profile_data.travel_preferences.flights.outbound` (toujours présent pour USER RÉEL)
+
+#### C. Tavily Search — Questions Dynamiques
+
+`_resolve_dynamic_factual()` appelle Tavily Search pour les questions dont la réponse peut changer (visa, prix d'entrée, horaires, événements).
+
+**Configuration (à ajouter dans `.env`) :**
+```bash
+TAVILY_API_KEY=tvly-...
+TAVILY_TIMEOUT_SECONDS=5
+TAVILY_MAX_RESULTS=3
+```
+
+**Constantes centralisées dans `settings.py` :**
+```python
+TAVILY_API_KEY         = os.getenv("TAVILY_API_KEY", "")
+TAVILY_TIMEOUT_SECONDS = int(os.getenv("TAVILY_TIMEOUT_SECONDS", "5"))
+TAVILY_MAX_RESULTS     = int(os.getenv("TAVILY_MAX_RESULTS", "3"))
+```
+
+**Comportement :**
+- Cache session `_TAVILY_SESSION_CACHE` — même question dans la même session ne déclenche pas 2 appels
+- Fallback transparent si clé absente / timeout / 0 résultats → `has_web_data=False` → Agent 3 répond de mémoire avec caveat
+- Query enrichie : `f"{message} {destination} {year}"` — maximise la pertinence contextuelle
+- Endpoint : `POST https://api.tavily.com/search` avec `include_answer=True`
+
+#### D. Questions Vol Personnel — Fix Routing + Données Normalisées
+
+**Problème corrigé :** "mon vol est à quelle heure ?" retournait "Je n'ai pas accès à vos informations de vol personnelles".
+
+**3 causes racines corrigées :**
+
+**1. Guard routing `_BOOKING_FORCE_KW` dans `route_after_context_merge` (`builder.py`) :**
+
+`intent_classifier` classifiait parfois les questions de vol personnel comme `travel_question` → `availability_checker` sauté → pas de données booking dans le state.
+
+```python
+_BOOKING_FORCE_KW = frozenset({
+    "mon vol", "mon hôtel", "mon hotel", "ma chambre",
+    "ma réservation", "check-in", "mon billet", "ma résa",
+    "heure de vol", "heure du vol", "décollage", "atterrissage",
+    "numéro de vol", "vol retour", "vol aller",
+})
+
+def route_after_context_merge(state: GraphState) -> str:
+    primary_intent = (state.get("intent_result") or {}).get("primary_intent", "unsupported")
+    if primary_intent == "travel_question":
+        msg = (state.get("normalized_message") or state.get("user_message") or "").lower()
+        if any(kw in msg for kw in _BOOKING_FORCE_KW):
+            return "availability_checker"   # "mon vol…" → besoin des données API booking
+        return "clarification_checker"      # factuel pur → on saute availability_checker (-2.4s)
+    return "availability_checker"
+```
+
+**2. `_BOOKING_KW` étendu avec mots-clés vol :**
+
+```python
+_BOOKING_KW = frozenset({
+    "réservation", "reservation", "booking", "voucher",
+    "chambre", "confirmé", "confirme", "mon hôtel", "mon hotel",
+    "ma réservation", "billet", "check-in", "check in",
+    # Vols — questions sur le vol personnel du voyageur
+    "mon vol", "heure du vol", "heure de vol", "heure d'arrivée", "heure d'atterrissage",
+    "décollage", "decolage", "atterrissage", "atterrisage",
+    "vol aller", "vol retour", "numéro de vol", "numero de vol",
+    "compagnie aérienne", "mon billet d'avion",
+})
+```
+
+**3. Chemin de données normalisé — `profile_builder_service.py` normalise les données API :**
+
+`profile_data` n'est **pas** la réponse brute de l'API. `profile_builder_service.py` normalise en snake_case avec des sous-objets structurés avant de stocker en MongoDB.
+
+```
+❌ MAUVAIS (clés brutes API) : profile_data.get("outboundFlight")
+✅ CORRECT (chemin normalisé) : profile_data["travel_preferences"]["flights"]["outbound"]
+```
+
+**Structure normalisée complète des vols :**
+```python
+profile_data["travel_preferences"]["flights"] = {
+    "outbound": {
+        "flight_number": "TU309",           # API: flightNumber
+        "airline":       "Tunisair",        # API: airlineCompany.fullName
+        "from": {
+            "name": "Tunis-Carthage",       # API: takeoffAirport.name
+            "iata": "TUN",                  # API: takeoffAirport.iataCode
+        },
+        "to": {
+            "name": "Paris CDG",            # API: landingAirport.name
+            "iata": "CDG",                  # API: landingAirport.iataCode
+        },
+        "takeoff_time": "2026-07-20T08:30:00.000Z",   # API: takeoffTime (ISO string)
+        "landing_time": "2026-07-20T11:45:00.000Z",   # API: landingTime
+        "schedule": "OnTime",               # API: scheduleStatus
+    },
+    "return": { ... }   # même structure
+}
+```
+
+**Helpers ajoutés dans `information_node.py` :**
+```python
+def _profile_flights(profile_data):
+    """Accès défensif au dict flights normalisé."""
+    return (
+        ((profile_data or {}).get("travel_preferences") or {})
+        .get("flights") or {}
+    )
+
+def _fmt_flight_time(iso_str):
+    """'2026-07-20T08:30:00.000Z' → '08:30'"""
+    try:
+        t = iso_str.replace("Z", "").split("T")
+        return t[1][:5] if len(t) > 1 else iso_str
+    except Exception:
+        return iso_str
+```
+
+**Architecture défense-en-profondeur :** le fix fonctionne même si `intent_classifier` continue à classer "mon vol" en `travel_question` — le guard `_BOOKING_FORCE_KW` force `availability_checker`, puis `_detect_subtype` détecte `booking_info` via `flights.get("outbound")` depuis `profile_data` sans dépendre de `availability_result`.
+
+#### E. Fichiers créés / modifiés
+
+| Fichier | Opération | Rôle |
+|---------|-----------|------|
+| `app/nodes/conversation/informative_response_node.py` | ✅ Créé | Agent 3 — LLM Gemini, présente `information_context` |
+| `app/prompts/informative_response_prompt.py` | ✅ Créé | Prompt spécialisé 6 subtypes + exemple flight |
+| `app/config/definitions.py` | ✅ Mis à jour | `INFORMATIVE_RESPONSE_CONFIG` (gemini, temp=0.1, json) |
+| `app/config/settings.py` | ✅ Mis à jour | `TAVILY_API_KEY`, `TAVILY_TIMEOUT_SECONDS`, `TAVILY_MAX_RESULTS` |
+| `app/nodes/conversation/information_node.py` | ✅ Mis à jour | `_BOOKING_KW` étendu, `_profile_flights()`, `_extract_flight_info()` normalisé, `_resolve_booking_info()` normalisé, `_detect_subtype()` accepte `profile_data` |
+| `app/graph/builder.py` | ✅ Mis à jour | `_BOOKING_FORCE_KW` guard + `route_after_context_merge` + edge `information_node → informative_response → END` |
+
+#### F. Topologie graphe VERSION 10
+
+```
+route_after_context_merge :
+    travel_question + _BOOKING_FORCE_KW match → availability_checker → clarification_checker
+    travel_question pure (factuel)             → clarification_checker  (skip, -2.4s)
+    tout le reste                              → availability_checker → clarification_checker
+
+clarification_checker
+    ├── greeting / unsupported / clarification → [final_response] → END              ← Agent 1
+    ├── travel_question (météo)  → [weather_node] → [information_node] → [informative_response] → END
+    ├── travel_question / booking_question     → [information_node] → [informative_response] → END  ← Agent 3
+    └── continue (recommandation) → [day_skeleton?] → [weather] → ... → [recommendation_response] → END  ← Agent 2
+```
+
+**Graphe compilé : 27 nodes** (greeting, session_bootstrap, intent_classifier, profile_loader, context_merge, availability_checker, clarification_checker, day_skeleton, weather_node, semantic_node, orchestrator, hotel_node, flight_node, restaurant_node, activity_node, data_merger, constraint_validator, ranking_node, day_planner, information_node, **informative_response**, final_response, recommendation_response, feedback_logger, profile_writer, init).
+
+---
+
+## Bugs Connus / TODO (en attente de validation finale)
+1. ~~**`main.py` état incomplet**~~ ✅ Résolu — `build_initial_state()` utilisé (ligne 48) ; boucle de mise à jour exclut `conversation_history` + appende séparément (pas de `state.update(result)`)
+2. ~~**`final_response_node.py`**~~ ✅ Résolu — `intent_result` lu via `(state.get("intent_result") or {})` ; `constraints` extrait depuis `intent_result` (non depuis state direct)
 
 ---
 
@@ -3303,7 +3650,7 @@ Contenu attendu :
 #### CHAPITRE 4 — Analyse et Conception de l'Architecture
 
 **Sources documentées dans CLAUDE.md :**
-- Section `Architecture : Graphe LangGraph` → VERSION 1 à VERSION 8 avec topologies
+- Section `Architecture : Graphe LangGraph` → VERSION 1 à VERSION 9 avec topologies
 - Section `Pipeline Détaillé — 17 Étapes` → tableau phases 1→5
 - Section `Deux Types d'Utilisateurs` + `3 Modes de Recommandation`
 - `pfe_academic_material.md` §4 → CT-01 à CT-06 (justifications choix technologiques)
@@ -3319,7 +3666,7 @@ Contenu attendu :
 6. **Disponibilité tri-state** : `True` / `False` / `None` — contrat entre sources et ranking (IN-08)
 
 **Diagrammes à produire :**
-- Topologie finale du graphe (VERSION 8 — 19 nodes avec couleurs par type : bleu=LLM, vert=tech, orange=API, violet=mémoire)
+- Topologie finale du graphe (VERSION 9 — 24 nodes avec couleurs par type : bleu=LLM, vert=tech, orange=API, violet=mémoire)
 - Schéma de la formule de scoring V2
 - Diagramme de séquence : message utilisateur → réponse (timing de chaque node)
 
@@ -3349,7 +3696,7 @@ Contenu attendu :
 #### CHAPITRE 6 — Réalisation et Implémentation
 
 **Sources documentées dans CLAUDE.md :**
-- Sections `VERSION 1` à `VERSION 8` → évolution itérative documentée avec bugs corrigés
+- Sections `VERSION 1` à `VERSION 9` → évolution itérative documentée avec bugs corrigés
 - Section `Démarche de Création d'un Agent` → processus en 6 étapes suivi pour chaque node
 - Section `Format Standard des Prompts d'Agent`
 - Section `Performance — Réduction Temps de Réponse`
@@ -3369,15 +3716,24 @@ Contenu attendu :
 → SOURCE 1 (API interne, `business_score=0.8`) + SOURCE 2 (MongoDB Atlas, `business_score=0.2`)
 → ThreadPoolExecutor, déduplication rapidfuzz ≥ 75, Atlas Search dual-analyzer (DA-04)
 
-**6.4 Day Planner contextuel (VERSION 6)**
+**6.4 Orchestrateur hybride (VERSION 9)**
+→ **Pattern original** : décision hybride règles 80% / LLM 20% — justification du seuil
+→ `_needs_llm()` : condition de déclenchement LLM (trip_is_ongoing OU is_last_day OU meal_plan OU has_anchors)
+→ `orchestrator_constraints` : contrat de flux vers domain nodes — tableau des clés par service
+→ Démontrer avec S1 (HB dernier jour) : LLM calcule 2h fenêtre → `max_duration_hours=2.0, exclude_types=[full_day,excursion]`
+→ Comparaison avant/après : avant = activités de 8h proposées le matin d'un départ 14h ; après = uniquement activités ≤ 2h
+→ `OrchestratorOutput.excluded_services` : raisonnement transparent (aucun concurrent ne documente ce niveau d'explicabilité)
+
+**6.5 Day Planner contextuel (VERSION 6)**
 → `trip_position` + `booking_anchors` + `day_skeleton` streaming
 → Démontrer la différence avant/après : avec ancres vs sans ancres (exemple All Inclusive)
+→ **Lien avec orchestrateur hybride** : l'orchestrateur filtre les candidats AVANT que le day planner les planifie — double couche de contextualisation
 
-**6.5 Scoring V2 multiplicatif**
+**6.6 Scoring V2 multiplicatif**
 → Formule, justification (invariant `user_score=0 → ranked=0`), poids configurables
 → Boost cross-session `liked_types` (×1.15, uniquement si `user_score > 0`)
 
-**6.6 Phase 5 — Mémoire et Apprentissage**
+**6.7 Phase 5 — Mémoire et Apprentissage**
 → `session_memory.py` : mining implicite des rejets (fenêtre < 5 mots, neutralisateurs)
 → `profile_writer_node` → Redis `interactions:{traveller_id}` TTL 30j
 
@@ -3398,6 +3754,7 @@ Contenu attendu :
 | VERSION 3 (2026-06-13) | 3 scénarios activity + day_planning | 3/3 PASS, 15/15 checks |
 | VERSION 6 (2026-07-08) | 8 scénarios E2E complets | 8/8 PASS, 28/28 assertions |
 | VERSION 7 (2026-07-28) | Production réelle (vrai LLM, vrai MongoDB, vraies APIs) | 9 bugs détectés et corrigés |
+| VERSION 9 (2026-07-31) | 4 scénarios orchestrateur hybride unitaires | 4/4 PASS (HB dernier jour / AI normal / USER NATIF règles / AI+resto explicite) |
 
 **Argument méthodologique fort (§7 pfe_academic_material.md) :**
 > La revue de code seule n'aurait détecté aucun des 9 bugs de production de VERSION 7. Tous nécessitaient une exécution réelle du graphe complet, avec de vraies données, sur des requêtes formulées comme un vrai voyageur les écrirait.
@@ -3422,10 +3779,11 @@ Contenu attendu :
 - Section `new architecture version5 by claude code` → roadmap MVP / v2 / v3
 
 **Conclusion — ce qui a été réalisé :**
-- Pipeline LangGraph 19 nodes, 5 phases, fonctionnel end-to-end (8/8 PASS)
+- Pipeline LangGraph 19 nodes, 5 phases, fonctionnel end-to-end (8/8 PASS E2E + 4/4 PASS orchestrateur)
 - 3 bases de connaissances construites : API interne (746 hôtels, 272 vols, 141 bookings), MongoDB `restaurant_collection` (26 575 docs), MongoDB `activities_collection` (2 345 docs)
-- 8 innovations documentées (IN-01 à IN-08)
+- **10 innovations documentées** dont 2 originales non présentes chez les 9 concurrents du benchmark : Hybrid Orchestration (VERSION 9) + Orchestrator-Driven Constraints
 - 10 décisions architecturales justifiées avec alternatives évaluées (DA-01 à DA-10)
+- Migration LLM Groq → Gemini avec fallback automatique (VERSION 7) — résilience multi-provider
 - Système déployable en production sur l'infrastructure MongoDB Atlas existante
 
 **Perspectives honnêtes (ne pas surestimer) :**
@@ -3444,9 +3802,9 @@ Contenu attendu :
 | 1. Introduction | (à rédiger) | — |
 | 2. Organisme | (données internes ZenifyTrip) | — |
 | 3. État de l'art | `etude_de_existant_by_claude_code` | §8 Angles morts concurrents |
-| 4. Architecture | `Architecture : Graphe LangGraph` · `Pipeline 17 Étapes` | §1 DA-01→DA-10 · §4 CT-01→CT-06 |
+| 4. Architecture | `Architecture : Graphe LangGraph` · `Pipeline 19 Nodes, 5 Phases` | §1 DA-01→DA-10 · §4 CT-01→CT-06 |
 | 5. Données | `restaurant_collection` · `activities_collection` | §5 Pipeline préparation |
-| 6. Réalisation | `VERSION 1→8` · `Démarche Création Agent` | §3 IN-01→IN-08 |
+| 6. Réalisation | `VERSION 1→9` · `Démarche Création Agent` | §3 IN-01→IN-08 |
 | 7. Tests | `VERSION 7 Validation` · `VERSION 1→6` | §2 Métriques · §7 Argument méthodologique |
 | 8. Conclusion | `Évolutions Futures` · `new architecture v5` | §6 Limites et perspectives |
 
@@ -3459,7 +3817,7 @@ Contenu attendu :
 | Présentation organisme ZenifyTrip | ❌ Non documenté | Données internes à récupérer auprès de l'agence |
 | Introduction générale | ❌ Non documenté | À rédiger ex nihilo |
 | Théorie systèmes de recommandation (CF, CBF, hybrid) | ❌ Non documenté | À rédiger depuis littérature académique |
-| Diagramme topologie graphe VERSION 8 coloré | ❌ Non produit | Générable depuis `builder.py` |
+| Diagramme topologie graphe VERSION 9 coloré | ❌ Non produit | Générable depuis `builder.py` (19 nodes, câblage identique à V8, commentaires à jour) |
 | Diagramme de séquence message → réponse | ❌ Non produit | Timings disponibles dans `node_metrics` |
 | Conclusion générale | ❌ Non documenté | À rédiger |
 | Bibliographie | ❌ Non documentée | LangGraph docs, Pydantic docs, papiers CF/CBF |
@@ -3476,4 +3834,5 @@ Les chiffres suivants ont été mesurés à une date précise — vérifier qu'i
 | 2 345 documents `activities_collection` | 2026-07-27 | Phase de nettoyage `activity_type unknown` effectuée |
 | 746 hôtels, 272 vols, 141 bookings | 2026-05-24 | Staging API mis à jour |
 | 8/8 PASS test_e2e.py | 2026-07-30 | Après toute modification de code |
+| 4/4 PASS test_orchestrator.py | 2026-07-31 | Après modification orchestrator_node.py |
 | 63,5% GPS restaurants | 2026-07-23 | Géocodage complémentaire effectué |
