@@ -34,8 +34,10 @@ GOOGLE_MAPS_API_KEY= os.getenv("GOOGLE_MAPS_API_KEY")
 OPENWEATHER_BASE_URL= os.getenv("OPENWEATHER_BASE_URL")
 GOOGLE_MAPS_BASE_URL= os.getenv("GOOGLE_MAPS_BASE_URL")
 
-# --- Restaurant Approach C
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+# --- Tavily Search (information_node — questions dynamiques : visa, prix, horaires, événements)
+TAVILY_API_KEY         = os.getenv("TAVILY_API_KEY", "")
+TAVILY_TIMEOUT_SECONDS = int(os.getenv("TAVILY_TIMEOUT_SECONDS", "5"))
+TAVILY_MAX_RESULTS     = int(os.getenv("TAVILY_MAX_RESULTS",     "3"))
 
 # --- Restaurant Tier 2 fallback
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
@@ -101,6 +103,16 @@ AVAILABILITY_UNKNOWN_FACTOR_OPEN      = float(os.getenv("AVAILABILITY_UNKNOWN_FA
 
 # --- Seuil de basculement Tier 1 (Mongo) -> Tier 2 (Google Places) restaurant_service.py
 RESTAURANT_MONGO_MIN_RESULTS = int(os.getenv("RESTAURANT_MONGO_MIN_RESULTS", "3"))
+
+# --- Restaurant scoring — proximity
+# Distance à partir de laquelle le proximity_score atteint son plancher (0.1).
+# À 0 km → 1.0 ; décroissance linéaire jusqu'à ce seuil.
+RESTAURANT_PROXIMITY_MAX_KM = float(os.getenv("RESTAURANT_PROXIMITY_MAX_KM", "5.0"))
+
+# --- Weather factor (ranking_node) — activités outdoor/indoor
+# Facteur minimum appliqué aux activités par mauvaise météo.
+# range [WEATHER_FACTOR_MIN, 1.0] — jamais éliminatoire.
+WEATHER_FACTOR_MIN = float(os.getenv("WEATHER_FACTOR_MIN", "0.70"))
 
 # --- Session Redis — persistance de session entre les tours
 SESSION_TTL_SECONDS         = int(os.getenv("SESSION_TTL_SECONDS",     "1800"))  # 30 min

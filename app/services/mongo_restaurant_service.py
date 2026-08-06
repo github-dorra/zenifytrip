@@ -19,7 +19,10 @@ Fallback Google Places/SerpApi (restaurant_service.py) si résultats < seuil.
 
 import logging
 import math
+import re
 from typing import Dict, Any, List, Optional, Tuple
+
+from app.config.settings import RESTAURANT_PROXIMITY_MAX_KM
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,25 @@ BUDGET_TO_PRICE_LEVEL: Dict[str, Tuple[int, int]] = {
 # Suffixes composites du vocabulaire semantic_node (ex. "seafoodRestaurant" -> "seafood")
 # — un seul suffixe retire en fin de mot, jamais en cascade.
 _KEYWORD_SUFFIXES = ("restaurant", "dining", "food", "cuisine", "cafe", "eating")
+
+# Regex horaires — formats tunisiens : "12:00-23:00", "11h30-14h30", "19h-22h30"
+# Capture uniquement les heures (minutes ignorées — précision heure suffisante).
+_TIME_RE = re.compile(
+    r'(\d{1,2})\s*[h:]\s*\d{0,2}\s*[-–]\s*(\d{1,2})\s*[h:]\s*\d{0,2}',
+    re.IGNORECASE,
+)
+
+# Poids scoring restaurant V2 — 6 dimensions, somme = 1.00.
+# proximity et hours retournent 0.5 (neutre) quand le signal est absent.
+_SCORE_WEIGHTS = {
+    "rel":       0.35,
+    "rating":    0.25,
+    "zone":      0.10,
+    "budget":    0.10,
+    "proximity": 0.10,
+    "hours":     0.10,
+}
+_SCORE_TOTAL = sum(_SCORE_WEIGHTS.values())  # 1.00
 
 
 def stem_keyword(kw: str) -> str:
@@ -69,6 +91,38 @@ class MongoRestaurantService:
         dl = math.radians(lng2 - lng1)
         a  = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
         return round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)), 2)
+
+    @staticmethod
+    def _proximity_score(distance_km: Optional[float]) -> float:
+        """1.0 à 0 km, décroissance linéaire, plancher 0.1 à RESTAURANT_PROXIMITY_MAX_KM.
+        Retourne 0.5 (neutre) quand distance_km est None (signal absent)."""
+        if distance_km is None:
+            return 0.5
+        return round(max(0.1, 1.0 - float(distance_km) / RESTAURANT_PROXIMITY_MAX_KM), 4)
+
+    @staticmethod
+    def _hours_score(opening_hours_text: Optional[str], request_hour: Optional[int]) -> float:
+        """1.0 si probablement ouvert, 0.3 si probablement fermé, 0.5 si inconnu.
+        Neutre (0.5) quand request_hour est None ou format non parseable."""
+        if not opening_hours_text or request_hour is None:
+            return 0.5
+        t = opening_hours_text.lower()
+        if "24h" in t or "24/7" in t:
+            return 1.0
+        matches = _TIME_RE.findall(t)
+        if not matches:
+            return 0.5
+        for h_open_s, h_close_s in matches:
+            open_h  = int(h_open_s)
+            close_h = int(h_close_s)
+            if close_h == 0:
+                close_h = 24  # "00:00" en fermeture = minuit
+            if open_h <= request_hour < close_h:
+                return 1.0
+            # Chevauchement minuit (ex. 20h-02h)
+            if close_h < open_h and (request_hour >= open_h or request_hour < close_h):
+                return 1.0
+        return 0.3
 
     @staticmethod
     def _to_candidate(
@@ -130,6 +184,7 @@ class MongoRestaurantService:
             "_city":              doc.get("city"),
             "_zone":              doc.get("zone"),
             "_source_url":        source_url,
+            "opening_hours_text": doc.get("opening_hours_text"),
         }
 
     # ── Pipeline Atlas Search ───────────────────────────────────────────────
@@ -174,14 +229,15 @@ class MongoRestaurantService:
             {"$addFields": {"search_relevance": {"$meta": "searchScore"}}},
         ]
 
-    # ── Scoring — formule V2 (2026-08-03) ───────────────────────────────────
-    #   user_score = search_relevance(43.75%) + rating_confiance(31.25%)
-    #              + zone_priority(12.5%)     + budget_soft_match(12.5%)
+    # ── Scoring — formule V2 (2026-08-06) ───────────────────────────────────
+    #   user_score = rel(35%) + rating(25%) + zone(10%) + budget(10%)
+    #              + proximity(10%) + hours(10%)   → divisé par _SCORE_TOTAL (1.00)
+    #   proximity : 1.0 à 0 km, décroissance linéaire, 0.1 à RESTAURANT_PROXIMITY_MAX_KM
+    #               0.5 (neutre) si distance_km=None (pas de GPS de référence)
+    #   hours     : 1.0 si ouvert maintenant, 0.3 si fermé, 0.5 si inconnu/no request_hour
     #   business_score extrait séparément → business_boost appliqué par ranking_node
-    #   Re-normalisation proportionnelle : poids originaux (0.35+0.25+0.10+0.10=0.80) ÷ 0.80
     # is_family conservé dans la signature pour compatibilité d'appel
-    # (restaurant_service.py) mais n'entre pas dans cette formule — pas de
-    # signal fiable pour la famille dans les champs actuels de la collection.
+    # (restaurant_service.py) mais n'entre pas dans cette formule.
 
     @staticmethod
     def _rating_confiance(rating: Optional[float], reviews: Optional[int]) -> float:
@@ -213,12 +269,13 @@ class MongoRestaurantService:
 
     @staticmethod
     def score(
-        candidate:          Dict,
-        keywords:            List[str],
-        budget_level:        Optional[str],
-        is_family:           bool,
+        candidate:             Dict,
+        keywords:              List[str],
+        budget_level:          Optional[str],
+        is_family:             bool,
         search_relevance_norm: float = 0.0,
-        destination:         str = "",
+        destination:           str = "",
+        request_hour:          Optional[int] = None,
     ) -> Tuple[float, List[str]]:
         criteria = []
 
@@ -232,10 +289,6 @@ class MongoRestaurantService:
         if rating_c > 0.7:
             criteria.append("rating_good")
 
-        biz = candidate.get("business_score")
-        if biz is None:
-            biz = BUSINESS_SCORE_DEFAULT
-
         zone_p = MongoRestaurantService._zone_priority(candidate.get("_city"), destination)
         if zone_p == 1.0:
             criteria.append("exact_city")
@@ -246,7 +299,25 @@ class MongoRestaurantService:
         if budget_s == 1.0:
             criteria.append("budget_match")
 
-        user_s = (rel * 0.4375) + (rating_c * 0.3125) + (zone_p * 0.125) + (budget_s * 0.125)
+        proximity_s = MongoRestaurantService._proximity_score(candidate.get("distance_km"))
+        if proximity_s < 0.5:
+            criteria.append("proximity_far")
+
+        hours_s = MongoRestaurantService._hours_score(
+            candidate.get("opening_hours_text"), request_hour
+        )
+        if hours_s == 0.3:
+            criteria.append("possibly_closed")
+
+        user_s = (
+            rel         * _SCORE_WEIGHTS["rel"]       +
+            rating_c    * _SCORE_WEIGHTS["rating"]    +
+            zone_p      * _SCORE_WEIGHTS["zone"]      +
+            budget_s    * _SCORE_WEIGHTS["budget"]    +
+            proximity_s * _SCORE_WEIGHTS["proximity"] +
+            hours_s     * _SCORE_WEIGHTS["hours"]
+        ) / _SCORE_TOTAL
+
         return round(min(user_s, 1.0), 4), criteria
 
     # ── Point d'entrée principal ──────────────────────────────────────────
@@ -262,6 +333,7 @@ class MongoRestaurantService:
         max_results:  int = 15,
         establishment_types: Optional[List[str]] = None,
         halal_required: bool = False,
+        request_hour: Optional[int] = None,
     ) -> List[Dict]:
         """
         Recherche restaurants via Atlas Search (index "restaurant_search") :
@@ -329,6 +401,7 @@ class MongoRestaurantService:
                 sc, crit = MongoRestaurantService.score(
                     c, keywords, budget_level, is_family,
                     search_relevance_norm=rel_norm, destination=destination,
+                    request_hour=request_hour,
                 )
                 c["user_score"]     = sc
                 c["matched_criteria"] = crit

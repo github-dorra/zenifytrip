@@ -81,21 +81,34 @@ class RestaurantNode(BaseNode):
         self, state: Dict[str, Any], merged_context: Dict[str, Any]
     ) -> Optional[List[str]]:
         """
-        Priorité : préférence explicite du voyageur (mappée vers un type
-        precis si le vocabulaire est reconnu, ex. "pizza" -> pizzeria ; sinon
-        aucun filtre plutôt qu'une devinette) > day_skeleton (plan
-        multi-créneaux, pool complet nécessaire en aval) > heure courante
-        (seulement si une date de séjour est fournie).
+        Priorité :
+          1. Préférence explicite voyageur (mappée en type connu, ex. "pizza" → pizzeria)
+          2. meal_slot imposé par l'orchestrateur (chemin LLM, ex. lunch seul en HB)
+          3. day_skeleton (pool complet nécessaire pour sélection slot-driven en aval)
+          4. Heure courante (seulement si une date de séjour est fournie)
         """
         constraints  = (state.get("intent_result") or {}).get("constraints") or {}
         day_skeleton = state.get("day_skeleton")
 
-        # Préférences accumulées sur la session (context_merger) — un désir
-        # exprimé à un tour précédent reste valide, pas seulement ce message.
+        # 1. Préférence explicite — priorité absolue
         restaurant_preferences = merged_context.get("restaurant_preferences") or []
         if restaurant_preferences:
             return self._establishment_types_from_preferences(restaurant_preferences)
 
+        # 2. Contrainte orchestrateur (meal_slot = "midi" ou "soir" ou "matin")
+        orch_meal_slot = (
+            (state.get("orchestrator_constraints") or {})
+            .get("restaurant_node", {})
+            .get("meal_slot")
+        )
+        if orch_meal_slot:
+            # Mapper meal_slot → _SLOT_TO_TYPES (FR key)
+            _MEAL_TO_SLOT = {"lunch": "midi", "dinner": "soir", "breakfast": "matin", "any": None}
+            slot_key = _MEAL_TO_SLOT.get(str(orch_meal_slot).lower(), orch_meal_slot.lower())
+            if slot_key and slot_key in self._SLOT_TO_TYPES:
+                return self._SLOT_TO_TYPES[slot_key]
+
+        # 3. day_skeleton → pool complet nécessaire
         if day_skeleton:
             # Demande multi-créneaux (day_planning) — le pool complet doit
             # rester disponible pour la sélection slot-driven en aval.
@@ -193,6 +206,12 @@ class RestaurantNode(BaseNode):
         # ── 2. STRATÉGIE DE RECHERCHE ────────────────────────────────
         search_strategy = self._build_search_strategy(state)
 
+        # request_hour — transmis à MongoRestaurantService pour le scoring "hours".
+        # Désactivé si day_skeleton présent : le day_planner a besoin du pool complet
+        # (tous créneaux) pour sa sélection slot-driven — on ne filtre pas par heure courante.
+        if not state.get("day_skeleton"):
+            search_strategy["request_hour"] = datetime.now().hour
+
         self.logger.info(
             f"RestaurantNode strategy: mode={search_strategy['mode']} | "
             f"destination={destination} | "
@@ -211,6 +230,7 @@ class RestaurantNode(BaseNode):
                 search_strategy=search_strategy,
                 max_candidates=max_candidates,
                 halal_required=halal_required,
+                request_hour=search_strategy.get("request_hour"),
             )
         except Exception as e:
             self.logger.error(f"RestaurantNode service error: {e}")
