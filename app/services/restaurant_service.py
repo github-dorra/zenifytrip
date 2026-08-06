@@ -89,6 +89,7 @@ class RestaurantServiceSerpApi:
             "matched_criteria":   [],
             "tier":               "serpapi",
             "source":             "serpapi",
+            "business_score":     0.20,
         }
 
     @staticmethod
