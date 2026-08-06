@@ -222,6 +222,9 @@ class RankingNode(BaseNode):
         if not weather_context:
             return 1.0
         insights = (weather_context.get("insights") or {})
+        if not insights:
+            # weather API unavailable (available=False → insights=None) → neutre
+            return 1.0
         outdoor_score = float(insights.get("outdoor_score") or 0.7)
         indoor_score  = float(insights.get("indoor_score")  or 0.7)
 
