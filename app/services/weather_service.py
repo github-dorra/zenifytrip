@@ -165,17 +165,24 @@ class WeatherService:
         
         #   -> plage ok ou pas 
         
-        outdoor_score = (
+        # outdoor_score : 0.0–1.0
+        #   parfait (18-30°C + soleil, pas de pluie) → 0.5+0.2+0.3 = 1.0
+        #   pluie seulement                          → max(0.0, 0.5-0.4) = 0.1
+        outdoor_score = min(1.0, max(0.0,
             0.5
             + (0.2 if 18 <= avg_temp <= 30 else 0)
+            + (0.3 if sun_ratio > 0.4 else 0)
             - (0.4 if rain_probability > 0.4 else 0)
-        )
-        
-        indoor_score = (
+        ))
+
+        # indoor_score : 0.0–1.0
+        #   pluie + très chaud → 0.4+0.4+0.2 = 1.0
+        #   temps neutre       → 0.4
+        indoor_score = min(1.0, max(0.0,
             0.4
             + (0.4 if rain_probability > 0.4 else 0)
             + (0.2 if avg_temp > 34 else 0)
-        )
+        ))
         
         return WeatherInsights(
             temperature_high=temperature_high,
