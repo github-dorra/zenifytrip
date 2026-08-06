@@ -199,11 +199,17 @@ class MongoRestaurantService:
 
     @staticmethod
     def _budget_soft_match(price_level: Optional[int], budget_level: Optional[str]) -> float:
-        """Bonus souple — jamais un filtre dur ici (pas de double-comptage avec un futur filtre)."""
+        """Score budget continu sur l'échelle 0-4 (price_level Google).
+        Dans la fourchette → 1.0 ; hors fourchette → décroissance linéaire,
+        plancher 0.1 (jamais exclu complètement — pas de double-comptage)."""
         if price_level is None or not budget_level:
             return 0.5
         lo, hi = BUDGET_TO_PRICE_LEVEL.get(budget_level, (0, 4))
-        return 1.0 if lo <= price_level <= hi else 0.3
+        pl = float(price_level)
+        if lo <= pl <= hi:
+            return 1.0
+        dist = (pl - hi) if pl > hi else (lo - pl)
+        return round(max(0.1, 1.0 - dist / 4.0), 4)
 
     @staticmethod
     def score(
