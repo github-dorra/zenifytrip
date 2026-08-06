@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional
 
 
@@ -17,6 +17,7 @@ class RestaurantCandidate(BaseModel):
     distance_km: Optional[float] = None
     photo_reference: Optional[str] = None
     match_score: float = 0.0
+    user_score: float = 0.0   # posé par MongoRestaurantService ; copié vers match_score par sync_user_score_to_match_score
     matched_criteria: List[str] = Field(default_factory=list)
     establishment_types: List[str] = Field(default_factory=list)
     tier: str = "text_search"
@@ -25,6 +26,22 @@ class RestaurantCandidate(BaseModel):
     business_score: Optional[float] = None
     recommendation_reason: Optional[str] = None
     place_details: Optional[str] = None  # texte enrichi Place Details → passé au ranking_node LLM
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_user_score_to_match_score(cls, values):
+        """
+        MongoRestaurantService pose user_score mais pas match_score.
+        Google Places / SerpAPI posent match_score mais pas user_score.
+        Si match_score absent/nul et user_score présent → copie vers match_score
+        pour que data_merger le voie via c.get("match_score").
+        """
+        if isinstance(values, dict):
+            ms = float(values.get("match_score") or 0.0)
+            us = float(values.get("user_score")  or 0.0)
+            if ms == 0.0 and us > 0.0:
+                values["match_score"] = us
+        return values
 
     @field_validator("rating", mode="before")
     @classmethod
