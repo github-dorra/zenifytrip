@@ -110,6 +110,12 @@ de l'app. ~4.5 GB RAM, CPU-only sur CX32, ~8-12s par requête — acceptable com
 - main.py état incomplet : build_initial_state() déjà utilisé, pas de state.update(result)
 - final_response_node.py : intent_result None-safety + constraints correct path
 
+## ✅ Scoring V2 Roadmap documentée (2026-08-06)
+3 améliorations identifiées et documentées dans CLAUDE.md (section "Scoring V2 Roadmap") — NE PAS CODER :
+- ① proximity_score restaurant (distance_km déjà calculé, effort faible, impact moyen-fort)
+- ② horaires d'ouverture (opening_hours_text 99,9% rempli, parsing texte libre = effort moyen)
+- ③ météo dans scoring activités (outdoor_score/indoor_score déjà dans state, effort moyen)
+
 ## 🚀 Prochaine quête
 - Finalisation rapport PFE
 - Tests E2E complets (8 scénarios) pour valider la chaîne scoring corrigée
