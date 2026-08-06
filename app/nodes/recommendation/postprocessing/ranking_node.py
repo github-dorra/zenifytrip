@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.config.settings import (
@@ -9,6 +9,7 @@ from app.config.settings import (
     AVAILABILITY_UNKNOWN_FACTOR_OPEN,
     INTERACTIONS_REDIS_PREFIX,
     CROSS_SESSION_LIKED_BOOST,
+    WEATHER_FACTOR_MIN,
 )
 
 try:
@@ -69,6 +70,9 @@ class RankingNode(BaseNode):
             self.logger.info("no candidates to rank")
             return {"ranked_results": [], "total_ranked": 0}
 
+        # ── Contexte météo pour le facteur activités ─────────────────────
+        weather_context: Optional[Dict] = state.get("weather_context") or None
+
         # ── Signaux cross-session (Phase 5) ─────────────────────────────
         cross_session          = self._load_cross_session_data(state)
         cross_session_rejected = cross_session["rejected"]
@@ -125,15 +129,20 @@ class RankingNode(BaseNode):
             # Domaines sans champ is_available (hotel, flight, restaurant) → ×1.0 neutre
             avail_factor   = unknown_factor if candidate.get("is_available", True) is None else 1.0
 
+            # Facteur météo : activités outdoor vs indoor selon météo du jour.
+            # Neutre (1.0) pour hôtels, vols, restaurants et activités sans type connu.
+            weather_f = self._weather_factor(candidate, weather_context)
+
             # V2 multiplicatif — le business booste les candidats pertinents,
             # ne sauve jamais un candidat non pertinent (user=0 → ranked=0)
             business_boost = (1 + BUSINESS_SCORE_WEIGHT * business_score) / (1 + BUSINESS_SCORE_WEIGHT)
-            ranked_score   = round(user_score * business_boost * avail_factor, 4)
+            ranked_score   = round(user_score * business_boost * avail_factor * weather_f, 4)
 
-            candidate["user_score"]     = round(user_score, 4)
-            candidate["business_score"] = round(business_score, 4)
+            candidate["user_score"]          = round(user_score, 4)
+            candidate["business_score"]      = round(business_score, 4)
             candidate["availability_factor"] = avail_factor
-            candidate["ranked_score"]   = ranked_score
+            candidate["weather_factor"]      = weather_f
+            candidate["ranked_score"]        = ranked_score
 
             scored.append(candidate)
 
@@ -145,13 +154,15 @@ class RankingNode(BaseNode):
 
         if scored:
             top = scored[0]
+            weather_active = weather_context is not None
             self.logger.info(
                 f"ranked={len(scored)} | "
                 f"business_weight={BUSINESS_SCORE_WEIGHT} | "
                 f"avail_mode={'PROTECTED' if unknown_factor == AVAILABILITY_UNKNOWN_FACTOR_PROTECTED else 'OPEN'} "
                 f"(best_confirmed={best_confirmed:.2f}, factor={unknown_factor}) | "
+                f"weather={'active' if weather_active else 'off'} | "
                 f"#1 [{top.get('domain','?')}] {top.get('name','?')} "
-                f"ranked_score={top['ranked_score']}"
+                f"ranked_score={top['ranked_score']} weather_factor={top.get('weather_factor',1.0)}"
             )
 
         return {
@@ -189,3 +200,39 @@ class RankingNode(BaseNode):
                 return _TIER_BUSINESS_SCORE[label]
 
         return _DEFAULT_BUSINESS_SCORE
+
+    @staticmethod
+    def _weather_factor(c: Dict, weather_context: Optional[Dict]) -> float:
+        """
+        Facteur météo [WEATHER_FACTOR_MIN, 1.0] appliqué uniquement aux activités
+        dont le type est connu (non "unknown"). Neutre (1.0) pour tous les autres
+        domaines (hotel, flight, restaurant) et pour les activités sans type.
+
+        Logique :
+          nature / adventure → pondéré par outdoor_score (météo favorable = 1.0, mauvais = WEATHER_FACTOR_MIN)
+          culture / relax    → pondéré par indoor_score
+          city_experience    → moyenne des deux (polyvalent)
+          unknown            → neutre (1.0) — pas de signal fiable
+        """
+        if c.get("domain") != "activity":
+            return 1.0
+        activity_type = (c.get("activity_type") or "").strip().lower()
+        if not activity_type or activity_type == "unknown":
+            return 1.0
+        if not weather_context:
+            return 1.0
+        insights = (weather_context.get("insights") or {})
+        outdoor_score = float(insights.get("outdoor_score") or 0.7)
+        indoor_score  = float(insights.get("indoor_score")  or 0.7)
+
+        if activity_type in ("nature", "adventure"):
+            raw = outdoor_score
+        elif activity_type in ("culture", "relax"):
+            raw = indoor_score
+        elif activity_type == "city_experience":
+            raw = (outdoor_score + indoor_score) / 2.0
+        else:
+            return 1.0
+
+        # Interpolation vers [WEATHER_FACTOR_MIN, 1.0] — jamais éliminatoire
+        return round(WEATHER_FACTOR_MIN + (1.0 - WEATHER_FACTOR_MIN) * raw, 4)
