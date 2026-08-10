@@ -8,6 +8,7 @@ Chemin : data_merger → recommendation_response_node → END
 (distinct de final_response_node qui gère uniquement la clarification)
 """
 import json
+import re
 from typing import Any, Dict, List
 
 from app.nodes.core.Base_node import BaseNode
@@ -37,6 +38,12 @@ _MAX_BY_INTENT = {
 
 # Ordre de priorité pour le score final (ranked_score = sortie ranking V2)
 _SCORE_KEYS = ("ranked_score", "score", "match_score", "final_score")
+
+# Filtre nom : excursions/visites guidées/privées — appliqué quand reject_private_tour=True
+_PRIVATE_TOUR_NAME_RE = re.compile(
+    r"excursion|visite\s+guid|priv[ée]e?|vip\s+tour|tour\s+priv|circuit\s+priv",
+    re.IGNORECASE,
+)
 
 # Vocabulaire NORMALISÉ par intent_classifier (contrat du prompt) → activity_type des candidats
 _INTEREST_TO_ACTIVITY_TYPE = {
@@ -347,6 +354,18 @@ class RecommendationResponseNode(BaseNode):
         if priority_domain:
             # Intent mono-domaine : pool filtré, diversité zone, plafond
             pool = [c for c in all_candidates if c.get("domain") == priority_domain]
+
+            # Filtrage signaux de session pour les activités
+            # (day_planning l'applique déjà dans _select_for_day_planning)
+            if priority_domain == "activity":
+                signals = extract_session_signals(state.get("conversation_history") or [])
+                rejected = set(signals.get("rejected_types") or [])
+                if rejected:
+                    pool = [c for c in pool if c.get("activity_type") not in rejected]
+                if signals.get("reject_private_tour"):
+                    pool = [c for c in pool
+                            if not _PRIVATE_TOUR_NAME_RE.search(c.get("name", "") or "")]
+
             selected = self._diversify(pool, cap)
         elif primary_intent == "day_planning":
             # Sélection pilotée par la situation (trip_position + ancres + météo + profil)

@@ -41,19 +41,43 @@ _KEYWORD_TO_TYPE = {
     "spa": "relax", "hammam": "relax", "massage": "relax", "detente": "relax",
     "relax": "relax", "repos": "relax",
     "souk": "city_experience", "souks": "city_experience", "marche": "city_experience",
-    "shopping": "city_experience", "boutiques": "city_experience",
+    "shopping": "city_experience", "boutiques": "city_experience", "boutique": "city_experience",
+    # Souvenir / artisanat / commerce — absents avant, ajoutés fix 2026-08-10
+    "souvenir": "city_experience", "souvenirs": "city_experience",
+    "artisanat": "city_experience", "artisan": "city_experience", "artisans": "city_experience",
+    "mall": "city_experience", "bazar": "city_experience", "bazaar": "city_experience",
+    "freeshop": "city_experience", "hanout": "city_experience",
 }
+
+# Mots-clés signalant un rejet d'excursion / visite privée (détection distincte de activity_type)
+# Utilisés pour reject_private_tour uniquement — fenêtre plus large (7 mots)
+_PRIVATE_TOUR_WORDS = frozenset({
+    "excursion", "excursions", "prive", "privee", "privees", "prives",
+    "guidee", "guidees", "guide", "guides", "vip",
+})
+# Marqueurs de rejet étendus (inclut "autre" pour "autre chose que les excursions")
+_EXTENDED_REJECT_MARKERS = frozenset({
+    "pas", "sans", "non", "jamais", "evite", "eviter", "no", "not", "avoid", "skip",
+    "autre", "plutot", "different", "instead", "plus",
+})
 
 _MAX_TURNS = 10   # ne mine que les 10 derniers tours user
 
 
 def extract_session_signals(conversation_history: List[Dict[str, str]]) -> Dict[str, Any]:
     """
-    Retourne {"rejected_types": [...], "liked_types": [...]} depuis les tours user.
+    Retourne {"rejected_types": [...], "liked_types": [...], "reject_private_tour": bool}.
     Déterministe, aucun LLM. Le rejet PRIME sur le like pour un même mot-clé.
+
+    reject_private_tour=True quand le user rejette les excursions/visites guidées/privées
+    (ex : "pas d'excursion", "autre chose que les excursions", "sans visite guidée").
+    Utilise une fenêtre étendue de 7 mots + marqueurs élargis ("autre", "plutot", "plus").
     """
     rejected: set = set()
     liked: set = set()
+    reject_private_tour = False
+
+    _PRIVATE_TOUR_WINDOW = 7   # fenêtre plus large que REJECTION_WINDOW
 
     user_turns = [t.get("content", "") for t in (conversation_history or [])
                   if t.get("role") == "user"][-_MAX_TURNS:]
@@ -61,6 +85,16 @@ def extract_session_signals(conversation_history: List[Dict[str, str]]) -> Dict[
     for turn in user_turns:
         words = _WORD_RE.findall(normalize_text(turn))
         for j, word in enumerate(words):
+            # ── Détection reject_private_tour (fenêtre 7, marqueurs étendus) ──
+            if not reject_private_tour and word in _PRIVATE_TOUR_WORDS:
+                for i in range(max(0, j - _PRIVATE_TOUR_WINDOW + 1), j):
+                    if words[i] in _EXTENDED_REJECT_MARKERS:
+                        between = set(words[i + 1:j])
+                        if not (between & _NEUTRALIZERS):
+                            reject_private_tour = True
+                            break
+
+            # ── Détection activity_type rejected / liked ──
             activity_type = _KEYWORD_TO_TYPE.get(word)
             if not activity_type:
                 continue
@@ -86,4 +120,8 @@ def extract_session_signals(conversation_history: List[Dict[str, str]]) -> Dict[
                     break
 
     liked -= rejected             # cohérence : jamais liked ET rejected
-    return {"rejected_types": sorted(rejected), "liked_types": sorted(liked)}
+    return {
+        "rejected_types": sorted(rejected),
+        "liked_types": sorted(liked),
+        "reject_private_tour": reject_private_tour,
+    }
