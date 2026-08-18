@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 SEARCH_INDEX_NAME = "restaurant_search"
 
 # Défaut RestaurantGuru — écrasé par doc["business_score"] quand explicite (sources externes)
-BUSINESS_SCORE_DEFAULT = 0.6
+BUSINESS_SCORE_DEFAULT = 0.7
 
 # "€" → 1, "€€" → 2, "€€€" → 3, "€€€€" → 4
 BUDGET_TO_PRICE_LEVEL: Dict[str, Tuple[int, int]] = {

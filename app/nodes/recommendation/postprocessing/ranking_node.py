@@ -25,7 +25,7 @@ _TIER_BUSINESS_SCORE: Dict[str, float] = {
     "catalogue": 0.45,
     "external":  0.20,
     "mongodb":   0.30,
-    "serpapi":   0.20,
+    "serpapi":   0.30,
 }
 
 _DEFAULT_BUSINESS_SCORE = 0.50
