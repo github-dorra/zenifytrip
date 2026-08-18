@@ -20,7 +20,7 @@ class InternalActivityService:
 
     HEADERS = {"Authorization": f"Bearer {API_KEY}"}
     TIMEOUT = 30
-    BUSINESS_SCORE = 0.8   # catalogue agence — commission sur vente
+    BUSINESS_SCORE = 0.7   # catalogue agence — commission sur vente
 
     BUDGET_TO_PRICE: Dict[str, Tuple[float, float]] = {
         "low":     (0,    40),

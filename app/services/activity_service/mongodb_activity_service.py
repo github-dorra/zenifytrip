@@ -13,7 +13,7 @@ from app.config.settings import USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT
 
 logger = logging.getLogger(__name__)
 
-BUSINESS_SCORE = 0.2
+BUSINESS_SCORE = 0.3
 
 BUDGET_TO_PRICE_EUR: Dict[str, Tuple[float, float]] = {
     "low":     (0,   20),
