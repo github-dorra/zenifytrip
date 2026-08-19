@@ -324,18 +324,6 @@ START ──→ [greeting]          ──→ [intent_classifier] ────�
 | `suggestion_mode` initial | `"precise_plan"` | `"exploratory"` |
 | Mode minimum garanti | `"semi_exploratory"` (jamais `exploratory`) | aucun plancher |
 
-**Bugs corrigés dans cette version :**
-- `ProfileService` async → synchrone (`requests`)
-- `context_merger` retournait `state` entier → `{"merged_context": merged}`
-- `main.py` clé `constraints` incorrecte → `intent_result["constraints"]`
-- `profile_loader safe_get` incomplet → ajout du `key` argument
-- `travellerId` clé incohérente → uniformisé partout
-- `greeting_node` appelait `bootstrap_session` en double → supprimé
-- Fan-in LangGraph mal synchronisé → `START` node avec deux branches parallèles
-- `hotel_stars` crash `None > int` → regex + `or 0`
-- Tags lus depuis mauvaise source dans `context_merger` → `profile_data["tags"]`
-- `reponse_schema` Literal trop strict → `field_validator(mode="before")` normalisation
-
 ### Graphe cible — pipeline complet 17 étapes
 ```
 Entrée Utilisateur
@@ -418,16 +406,6 @@ START → [greeting] + [session_bootstrap]         ← fan-out parallèle
 - Intents secondaires enrichissent les services (ex. `secondary: restaurant_recommendation` → ajoute `restaurant_node`)
 - `accommodation + mode exploratory` → ajoute `activity_node` automatiquement
 - `trip_package + destination` → force les 4 services
-
-#### Corrections architecturales (session 2026-06-08)
-
-| Fichier | Correction |
-|---------|-----------|
-| `hotel_node.py` | GeoJSON `[lng, lat]` → `{"lat": coords[1], "lng": coords[0]}` ; ajout `_haversine()` + `distance_km` |
-| `restaurant_service_a.py` | GeoJSON fix ; fallback géocodage Google ; `search_strategy` dict remplace `hotel_id` binaire |
-| `restaurant_node.py` | `_build_search_strategy()` : mode basé sur intent/keywords, pas sur type user |
-| `semantic_node.py` | 4 keywords de proximité ajoutés : `nearbyRestaurant`, `walkingDistance`, `hotelRestaurant`, `aroundMe` |
-| `tunisia_destinations.py` | `AIRPORT_COORDS` dict (9 aéroports) + `get_airport_coords(iata)` |
 
 ## Structure des Répertoires
 ```
@@ -1703,18 +1681,6 @@ user_geolocation: Optional[Dict[str, Any]]  # {lat: float, lng: float} | None
 
 ---
 
-#### Bugs Corrigés (session 2026-06-13)
-
-| Bug | Cause | Fix |
-|-----|-------|-----|
-| `InvalidUpdateError: activity_candidates / traveller_available` | `availability_checker` entre `profile_loader` et `context_merge` → profondeurs différentes → double exec | Déplacer `availability_checker` APRÈS `context_merge` |
-| `'ActivityCandidate' object has no attribute 'get'` in data_merger | `activity_node` retournait `output.activity_candidates` (liste Pydantic) au lieu de `validated` (liste dicts) | Retourner `validated` directement depuis `_validate()` |
-| `TypeError: '>' not supported between NoneType and int` in context_merger | `constraints.get("travelers", 1)` retourne None si clé existe avec valeur None | `int(constraints.get("travelers") or 0)` |
-| `semantic_node → final_response` au lieu de `semantic_node → orchestrator` | Bug câblage builder.py session précédente | Fix edge dans builder.py |
-| `MongoActivityService` non trouvé | `mongodb_activity_service.py` n'avait que des fonctions module-level, pas de classe | Ajout wrapper `class MongoActivityService` en bas du fichier |
-
----
-
 #### Tests End-to-End (2026-06-13)
 
 | Scénario | Intent | User | Destination | Résultat |
@@ -1898,21 +1864,6 @@ START → [greeting] + [session_bootstrap]
 | `feedback_logger` | `nodes/shared/feedback_logger_node.py` | ✅ | ✅ |
 | `profile_writer` | `nodes/user_profile/profile_writer_node.py` | ✅ | ✅ |
 
-#### Bugs identifiés (analyse session 2026-06-13, non encore corrigés)
-
-| # | Fichier | Bug | Sévérité |
-|---|---------|-----|----------|
-| 1 | `base_node.py:116` | `metrics_patch` construit mais jamais inclus dans le return | 🔴 |
-| 2 | `final_response_node.py:170` | `return {**state, ...}` — viole règle LangGraph | 🔴 |
-| 3 | `final_response_node.py:37` | `state.get("constraints")` clé inexistante dans GraphState | 🔴 |
-| 4 | `main.py:65` | `state.update(result)` après append history → écrase les nouveaux messages | 🔴 |
-| 5 | `main.py` | État initial incomplet (node_metrics manquant, utiliser `build_initial_state()`) | 🟠 |
-| 6 | `profile_loader_node.py:49` | Destination = nom aéroport (pas une ville) → matching zones échoue | 🟠 |
-| 7 | `profile_loader_node.py:55` | `accommodations[0]` sans filtre statut → peut prendre une réservation annulée | 🟠 |
-| 8 | `availability_service.py:218` | `if not results:` — dead code, branche jamais atteinte | 🟠 |
-
----
-
 ### VERSION 6 — Day Planner Contextuel + Scoring V2 ✓ (sessions 2026-07-05 → 2026-07-08)
 
 **Vision validée** : voir "Principe Directeur — Day Planner" en tête de fichier. E2E **8/8 PASS** (2026-07-08).
@@ -1967,113 +1918,13 @@ START → [greeting] + [session_bootstrap]
                 [day_planner (remplit le squelette)] → [recommendation_response (sélection slot-driven)] → END
 ```
 
-#### Restant après VERSION 6
-
-- ✅ Phase 5 — mémoire Redis cross-session (`interactions:{traveller_id}`) — commité `9f83736` (2026-07-29)
-- [ ] `app/test_e2e.py` scénario 8 (USER RÉEL) dépend du token API staging — il expire régulièrement
-- [ ] B1 `parse_json_safely` (sanitizer newlines) · B2 retry Gemini/Groq 429 · quota RPM Gemini Free Tier pour 100 users simultanés
-
 ---
 
-### VERSION 7 — Validation end-to-end réelle + 9 bugs de production (session 2026-07-28)
+### VERSION 7 — Validation end-to-end réelle (session 2026-07-28)
 
-**Méthodologie** : rupture avec les sessions précédentes (tests unitaires par node) — validation en faisant tourner le **graphe LangGraph complet, avec de vraies données** (vrai LLM, vraie MongoDB Atlas, vraies APIs externes), sur des requêtes utilisateur formulées comme un vrai voyageur les écrirait, pour chacun des 3 modes de recommandation (BOOKING, EXPLORATORY, PRECISE_PLAN/day_planning). Chaque bug ci-dessous a été découvert par ce type de test réel, jamais par relecture de code seule — puis corrigé et re-vérifié par un nouveau test réel avant commit. Argument méthodologique réutilisable pour le rapport : la revue de code seule n'aurait détecté aucun de ces 9 bugs, tous nécessitaient une exécution réelle pour se manifester.
+**Méthodologie** : validation en faisant tourner le **graphe LangGraph complet, avec de vraies données** (vrai LLM, vraie MongoDB Atlas, vraies APIs externes), sur des requêtes utilisateur formulées comme un vrai voyageur les écrirait, pour chacun des 3 modes (BOOKING, EXPLORATORY, PRECISE_PLAN/day_planning). Argument méthodologique : la revue de code seule n'aurait détecté aucun des 9 bugs corrigés dans cette session — tous nécessitaient une exécution réelle pour se manifester.
 
-#### A. `restaurant_node` — filtre par créneau + préférences explicites (commits `3a464db`, `89108f8`)
-
-| Bug | Cause | Fix |
-|---|---|---|
-| Aucun filtre `establishment_types` selon l'heure/le créneau du repas | Logique jamais implémentée | `_SLOT_TO_TYPES` (matin→cafe/dessert, midi→restaurant/fast_food/pizzeria, soir→+bar, snack→fast_food/dessert) dérivé de l'heure courante, désactivé si préférence explicite ou `day_skeleton` présent (pool complet nécessaire au day planner) |
-| `restaurant_preferences` (ex. "pizza") jamais transmis à la recherche | `restaurant_node.run()` ne lisait que `global_keywords` (sortie `semantic_node`), jamais `merged_context.restaurant_preferences` (champ structuré rempli par `intent_classifier`) | Fusion des deux listes de mots-clés avant l'appel à `RestaurantService` ; `_PREFERENCE_TO_ESTABLISHMENT_TYPE` (rule-based, 7 valeurs canoniques vérifiées en DB) mappe une préférence connue vers un filtre dur `establishment_types` |
-| Champ `features` (livraison, terrasse, wifi...) jamais exploité par la recherche | Absent des clauses `should` d'Atlas Search | Ajouté au boost (`x1.5`, entre `tags` x2 et `description`) |
-
-Testé : requête "quel plat essayer à Monastir" (Dar Bibi, cuisine locale, remonte en 1er) + "pizza près de l'hôtel" (Domino Pizza/Target Pizza/O'Pizza en top 5, avant le fix : restaurants génériques sans lien avec "pizza").
-
-#### B. Modèle Groq mort — panne silencieuse de 3 nodes (commit `0b3fa8e`)
-
-`meta-llama/llama-4-scout-17b-16e-instruct` retiré du catalogue Groq (confirmé via `client.models.list()` : absent, 404 `model_not_found`). Cassait **`semantic_node`, `day_planner_node`, `recommendation_response_node`** à chaque appel — masqué par les `try/except` de `BaseNode` qui retombent sur un résultat vide sans crasher, donc invisible en usage normal. Remplacé par `llama-3.3-70b-versatile` dans `app/config/definitions.py` (3 configs). Découvert en observant que `global_keywords` restait systématiquement vide sur 2 requêtes réelles.
-
-#### C. Migration LLM provider : Groq → Gemini (avec fallback automatique)
-
-Le quota Groq TPD (100K tokens/jour, tier gratuit) s'est révélé insuffisant dès le développement actif (épuisé plusieurs fois dans la même session de tests). Migration effectuée le 2026-07-28 vers **Gemini 2.0 Flash** (Google AI Studio, gratuit, 1500 requêtes/jour, sans expiration) comme provider principal pour tous les nodes LLM (`app/config/definitions.py`). `app/config/llm_service.py::call_llm()` implémente un **fallback automatique Gemini → Groq** en cas de `429 RESOURCE_EXHAUSTED` — les deux quotas se complètent au lieu de se cumuler comme point de défaillance unique. Historique de migration documenté en commentaire dans `definitions.py` (table Groq actuel/Ollama futur devenue Groq historique/Gemini actuel/Ollama futur).
-
-> Note infra : Gemini possède aussi une limite par minute assez basse en tier gratuit — observée en se déclenchant après une poignée d'appels rapprochés pendant les tests, résolue en quelques dizaines de secondes d'attente (contrairement au quota journalier Groq qui nécessite d'attendre le lendemain).
-
-#### D. Migration cache profil voyageur : Redis → MongoDB Atlas
-
-**Périmètre vérifié avant migration** : `ProfileCacheService` (`profile:{traveller_id}`) était le **seul et unique consommateur réel de Redis** dans tout le codebase — `interactions:{traveller_id}` (Phase 5) et `session:{session_id}` n'existent pas encore, et le cache hôtels/vols/restaurants/météo (`cache_service.py::SimpleTTLCache`) est déjà sur fichier JSON, pas Redis.
-
-**Décision** : nouvelle collection MongoDB `traveller_profile_cache` (`app/config/mongodb.py`), document `{_id: traveller_id, profile: {...}, cached_at, expires_at}`, **index TTL natif** sur `expires_at` (`expireAfterSeconds=0`, équivalent fonctionnel du `SETEX` Redis) + vérification défensive de l'expiration à la lecture (au cas où le sweep périodique ~60s n'est pas encore passé). Interface publique de `ProfileCacheService` (`on_user_login`, `get_profile`, `set_profile`, `invalidate`, `is_cached`, `ttl`) **inchangée** → zéro modification nécessaire dans `load_profile_node.py`, vérifié fonctionnel.
-
-**Justification** (réutilisable telle quelle pour le rapport) : Redis pour le profil était un point de défaillance optionnel supplémentaire (`redis_config.py::r` peut être `None` si mal configuré, désactivant silencieusement le cache) ; MongoDB Atlas est déjà une dépendance dure du projet (2 collections en prod) ; un TTL pouvant atteindre 30 jours ressemble plus à un enregistrement persistant avec expiration qu'à un cache mémoire volatil au sens Redis. `PROFILE_CACHE_PREFIX` (namespacing de clé Redis) supprimé de `settings.py`, devenu inutile (`_id` = `traveller_id` directement dans une collection dédiée).
-
-**Bug trouvé pendant les tests de la migration** : `ttl()` retournait toujours `-2` (silencieusement avalé par un `except` générique) — cause : `datetime.now(timezone.utc)` (aware) comparé/soustrait à un datetime **naïf** retourné par pymongo par défaut. Fix : `datetime.utcnow()` partout dans `profile_cache_service.py`, cohérent avec ce que pymongo stocke/relit réellement.
-
-#### E. `day_planner_node` — traçabilité candidats + domaine mal étiqueté (commit `5b57f83`)
-
-| Bug | Cause racine | Fix |
-|---|---|---|
-| Un restaurant reçu par le LLM comme `item_type="activity"`, planifié le matin (viole la règle prompt "restaurants → afternoon/evening only") | `_prepare_candidates()` lisait `c.get("item_type") or c.get("type", "activity")` — champs jamais posés par `data_merger_node`, qui pose en réalité `"domain"` (hotel/restaurant/activity/flight). **Chaque candidat retombait sur le défaut `"activity"`**, quel que soit son vrai domaine | Lire `c.get("domain") or "activity"` |
-| Le LLM paraphrasait parfois le nom d'un candidat réel ("Bazaar Houmt Souk" → "Marché traditionnel de Houmt Souk") en perdant `candidate_id` — casse la traçabilité vers le document réel (impossible de vérifier prix/dispo derrière) | Aucune contrainte explicite dans le prompt sur le verbatim du nom/id | Règle prompt explicite (copier `name`/`id` verbatim, sinon `item_type="free"`) **+** garde-fou Python déterministe `_reconcile_slot_candidates()` : réécrit `name`/`candidate_id`/`ranked_score`/`item_type` depuis la source de vérité si `candidate_id` valide ou si un match `rapidfuzz.token_set_ratio ≥ 70` est trouvé (plus robuste que `ratio` brut sur des paraphrases à mots différents type "marché" vs "bazaar") ; downgrade en `item_type="free"` si aucun candidat ne correspond — jamais un candidat non-traçable présenté comme réel |
-
-Doctrine appliquée : même principe que `constraint_validator_node` — une règle métier, un seul nœud responsable (ici : la traçabilité candidat↔réponse appartient exclusivement à `day_planner_node`).
-
-Testé : Djerba avant/après — "Restaurant Baccar" correctement `restaurant`/après-midi (était `activity`/matin), "Visites culturelles" traçable à son `candidate_id` réel dans `ranked_results`.
-
-#### F. TTL profil — parsing de date fragile (commit `cf99e5d`)
-
-`profile_builder_service.py::_compute_ttl` utilisait `strptime` figé sur `"%Y-%m-%dT%H:%M:%S.%fZ"` + slicing manuel `[:26]` — plantait dès que l'API renvoyait un format légèrement différent (ex. sans microsecondes), retombant silencieusement sur le TTL par défaut (`"[TTL ERROR] unconverted data remains: Z"`, la fonctionnalité "TTL dynamique selon la date de retour" documentée était donc cassée en silence). Fix : `datetime.fromisoformat()` (natif Python 3.11+, déjà en 3.13 ici) — gère `Z` et microsecondes variables/absentes sans parsing manuel.
-
-#### G. Destination "Tunisie" traitée comme une ville précise (commits `ece8403`, `f739c8a`)
-
-Deux bugs liés, découverts en testant le mode EXPLORATORY avec la requête "je veux organiser un voyage en Tunisie" :
-
-1. **`_match_city_in_text` (`availability_service.py`)** faisait un simple *containment substring* (`norm_key in normalized_text`) — `"tunis"` matchait littéralement dans `"tunisie"` (faux positif, pas une reconnaissance réelle). Fix : matching par **limites de mot** (regex `\b`) — strictement plus sûr qu'un substring (ne peut que retirer des faux positifs, jamais en introduire ; vérifié par comparaison directe ancien/nouveau code sur tous les cas existants : `el kantaoui`, `Hammamet`, `Sousse et Monastir` — zéro régression).
-2. **`context_merger_node.py`** retombait sur le **texte brut** quand `_match_city_in_text` ne reconnaissait aucune ville — donc même après le fix #1, `"Tunisie"`/`"Tunisia"` passait quand même comme destination résolue (`merged_context.destination = "Tunisia"`), sautant la clarification. Fix : nouveau helper `is_country_level_destination()` — si le texte normalisé égale exactement `"tunisie"`/`"tunisia"`, ne pas retomber sur le texte brut ; toute autre ville non reconnue (ex. petit village absent des 133 villes listées) garde le comportement existant (texte brut préservé, pas de sur-blocage).
-
-Conséquence observée avant fix : recommandation incohérente mélangeant Tunis (hôtel) et Djerba (restaurant) dans la même réponse, faute d'avoir demandé la région. Testé end-to-end avec un vrai LLM après fix : `merged_context.destination = None`, `blocking_fields = ['destination', 'interests']`, réponse naturelle demandant région + centres d'intérêt.
-
-#### H. `suggestion_mode="exploratory"` structurellement inatteignable (commit `3facfe4`)
-
-`REQUIRED_FIELDS_BY_ACTION["recommendation"] = ["destination"]` — un seul champ possible, donc au maximum 1 champ bloquant. Or `exploratory` exige 2+ champs bloquants (`clarification_checker_node.py`) → **mathématiquement inatteignable** pour un `action_type="recommendation"`, quelle que soit la vaguesse du message, contrairement à la doctrine documentée ("EXPLORATORY : USER NATIF, peu de détails fournis"). Seul `action_type="booking"` (4 champs possibles) pouvait l'atteindre.
-
-Fix scopé : `BROAD_INTENTS_NEED_INTERESTS = {"trip_package_recommendation", "day_planning"}` — ajoute `"interests"` aux champs requis **uniquement** pour ces 2 intents larges, jamais pour les recommandations de domaine précis (restaurant/activity/accommodation/flight) où la destination seule suffit déjà à agir sans reposer de question. Bénéfice secondaire observé : différencie désormais "je veux voyager" (aucun signal → `exploratory`, question large) de "je veux des vacances relax au soleil" (intérêts déjà donnés → `semi_exploratory`, ne redemande que la destination).
-
-#### I. Analyse formule de scoring restaurant — 5 termes (discussion approfondie, code non modifié)
-
-Formule actuelle (`mongo_restaurant_service.py::score()`) :
-```
-score = search_relevance × 0.35 + rating_confiance × 0.25 + business_score × 0.20
-      + zone_priority × 0.10 + budget_fit × 0.10
-```
-
-Verdict global : **les poids de haut niveau sont défendables — les bugs identifiés sont dans les formules internes de 3 des 5 termes**, pas dans leur pondération.
-
-| Terme | Constat |
-|---|---|
-| `search_relevance` | Normalisé (min-max par lot Atlas Search, pas de bug), mais `1.0` signifie "meilleur du lot" et non "objectivement pertinent" — peut amplifier du bruit quand l'écart Lucene brut entre candidats est faible |
-| `rating_confiance` | **Bug de non-monotonie trouvé** : `confidence_reviews = 0.5` si `reviews` est falsy, sinon `min(1, ln(reviews+1)/ln(50))` — pour 1 à 6 avis, ce calcul est **inférieur** au défaut "inconnu" (0.5). Exemple chiffré : 4.5★/2 avis → `0.560` vs 4.5★/0 avis connu → `0.656` — un restaurant avec de vrais avis obtient un score plus bas qu'un restaurant sans aucun avis. Fix identifié mais pas appliqué : plancher `max(0.5, ...)` |
-| `business_score` (poids 0.20) | Écart réel Mongo (0.6) vs SerpApi (0.2) = ~0.08 point sur 1.0, magnitude raisonnable. Mais modèle **additif** alors que `ranking_node` V2 (hôtels/activités) est passé à un modèle **multiplicatif** précisément pour qu'un `business_score` élevé ne puisse jamais sauver un candidat hors-sujet — question d'architecture non tranchée pour les restaurants |
-| `zone_priority` | Ne mesure **pas** la distance à l'hôtel du voyageur — seulement "match exact sur `city`" (1.0) vs "match via `zone`/gouvernorat" (0.6). Le filtre destination étant déjà un filtre dur Atlas Search en amont, ce terme mesure la spécificité du match, pas la proximité. `distance_km` (déjà calculé via haversine en mode `nearby`) n'est **jamais utilisé** dans le scoring |
-| `budget_fit` | Actuellement **binaire** (1.0 si dans la fourchette, sinon 0.3 flat, 0.5 si inconnu) — aucune gradation entre "juste hors budget" et "très hors budget". `budget_proximity_score()` (décroissance linéaire continue, déjà écrit et utilisé pour les 2 sources d'activités dans `activity_service/scoring.py`) pourrait être réutilisé sans dupliquer une 2e implémentation |
-
-**Décision produit actée pendant la discussion** : `zone_priority` reste tel quel (spécificité du match, pas une mesure de proximité) — la vraie résolution "proche de l'hôtel" vs "zone précise" doit se faire **en amont**, au niveau de la clarification (cf. section J), pas en ajoutant un terme de proximité dans le scoring.
-
-#### J. Idées produit discutées — roadmap, aucune non codée à ce stade
-
-1. **Quiz en-conversation** (remplace la clarification texte) : un pool d'options **rule-based** (nouveau node `quiz_builder_node`, assemblé depuis les vocabulaires déjà contrôlés du projet — villes de `tunisia_destinations.py`, intérêts des pools de `semantic_node`, filtré via `session_memory.py` pour ne jamais reproposer un rejet) que le LLM de `final_response_node` **sélectionne/ordonne/habille** (jamais n'invente d'options — même doctrine que l'enrichissement rule-based des collections). Décision validée : résout **plusieurs champs bloquants en un seul écran** plutôt qu'un par tour de conversation.
-2. **Quiz d'onboarding** (1ère utilisation) : capture une fois les traits **stables** du voyageur (goûts culinaires, type d'ambiance) — pas le contexte du voyage en cours (déjà bien géré par `intent_classifier`/profil de réservation). Stockage envisagé : structure Redis **dédiée**, distincte du cache profil agence (données ZenifyTrip propres vs données agence en lecture seule). Doit rester skippable — ne jamais bloquer l'accès au chat.
-3. **Clarification géolocalisation en 3 paliers** (zone dite → ouvrir la carte → question texte "près de l'hôtel ou zone précise") — conçu en détail (détection du palier via `state.get("clarification_type")` du tour précédent, déjà naturellement persisté par `main.py`) mais superseded par l'idée de quiz, qui absorbe ce mécanisme comme un type de question parmi d'autres plutôt qu'un flux séparé.
-4. **Filtre données placeholder catalogue vols staging** : un vol retourné en test contenait un aéroport fictif ("Aéroport TSR", IATA inexistant pour la Tunisie), une durée de vol nulle (`takeoffTime == landingTime`) et `scheduleStatus: "placeholder"` — donnée de test staging polluant une vraie recommandation. Pas encore filtré dans `flight_service.py`.
-
-#### K. Cartographie `SERPAPI_KEY` (audit complet)
-
-| Fichier | Rôle | Statut |
-|---|---|---|
-| `app/config/settings.py` | Déclaration centralisée (`SERPAPI_KEY = os.getenv(...)`) | — |
-| `app/services/restaurant_service.py` (`RestaurantServiceSerpApi`) | **Tier 2 fallback actif en production** pour `restaurant_node`, activé si MongoDB Tier 1 < `RESTAURANT_MONGO_MIN_RESULTS` (piloté par `RESTAURANT_TIER2_PROVIDER`, actuellement `"serpapi"` tant que Google Places reste bloqué par facturation) | ✅ Pipeline live |
-| `app/fetch_activities_serpapi.py` | Script standalone (`python -m app.fetch_activities_serpapi --key ...`), enrichissement ponctuel des fixtures d'activités | Hors pipeline, manuel |
-| `mongo_restaurant_service.py`, `activity_service/mongodb_activity_service.py` | Mentions en commentaire/docstring (traçabilité provenance de `business_score`) uniquement | Pas d'appel API |
+**Résultats** : 9 bugs détectés et corrigés — `restaurant_node` (filtres créneau + préférences), modèle Groq retiré du catalogue (panne silencieuse 3 nodes), migration LLM Groq → Gemini avec fallback automatique, migration cache profil Redis → MongoDB Atlas, `day_planner_node` domaine mal étiqueté + traçabilité candidats, TTL profil parsing fragile, destination "Tunisie" faux positif, `suggestion_mode="exploratory"` structurellement inatteignable.
 
 ---
 
@@ -2138,10 +1989,6 @@ Verdict global : **les poids de haut niveau sont défendables — les bugs ident
 | C | `['culturalActivity']` | monastir (comparaison) | 5 candidats | 0 ❌ |
 
 **Commit** : `8e92b57`
-
-#### C. `session_bootstrap.py` — fix USER NATIF
-
-`user_id` absent retournait `{"errors": [...]}` au lieu de la réponse USER NATIF attendue. Corrigé dans le même commit : retourne `{"travellerId": None, "user_type": "native", "suggestion_mode": "exploratory"}`.
 
 ---
 
@@ -2625,10 +2472,6 @@ def _weather_factor(c: Dict, weather_context: Optional[Dict]) -> float:
 > **Note architecturale :** ① et ② ont été intégrés dans le service source `mongo_restaurant_service.py` (scoring du domaine restaurant). ③ a été intégré dans `ranking_node.py` (transversal, car `weather_context` est déjà dans le GraphState au moment du ranking — zéro modification d'interface aux services activités).
 
 ---
-
-## Bugs Connus / TODO (en attente de validation finale)
-1. ~~**`main.py` état incomplet**~~ ✅ Résolu — `build_initial_state()` utilisé (ligne 48) ; boucle de mise à jour exclut `conversation_history` + appende séparément (pas de `state.update(result)`)
-2. ~~**`final_response_node.py`**~~ ✅ Résolu — `intent_result` lu via `(state.get("intent_result") or {})` ; `constraints` extrait depuis `intent_result` (non depuis state direct)
 
 ---
 
@@ -4032,16 +3875,6 @@ Contenu attendu :
 
 **Argument méthodologique fort (§7 pfe_academic_material.md) :**
 > La revue de code seule n'aurait détecté aucun des 9 bugs de production de VERSION 7. Tous nécessitaient une exécution réelle du graphe complet, avec de vraies données, sur des requêtes formulées comme un vrai voyageur les écrirait.
-
-**9 bugs de production catégorisés :**
-- B1 : `restaurant_node` — filtre créneau horaire absent, `restaurant_preferences` ignorées
-- B2 : Modèle Groq mort (404) — panne silencieuse masquée par `try/except`
-- B3 : Migration Groq → Gemini + fallback automatique
-- B4 : Migration cache profil Redis → MongoDB Atlas
-- B5 : `day_planner_node` — `domain` lu au lieu de `item_type`
-- B6 : TTL profil — `strptime` figé → `datetime.fromisoformat()`
-- B7+B8 : Destination "Tunisie" → faux positif substring / `is_country_level_destination()`
-- B9 : `suggestion_mode="exploratory"` mathématiquement inatteignable pour `recommendation`
 
 ---
 
