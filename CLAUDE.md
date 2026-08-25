@@ -3560,10 +3560,9 @@ INSUFFISANT :
 - is_bookable 15,8% → revenus agence faibles via ce canal
 - Couche "authenticité locale" (Wikivoyage) = seulement 4,6% — trop mince pour "présenter la Tunisie authentiquement"
 
-2 ACTIONS RESTANTES (action 1 résolue le 2026-08-25) :
-1. ✅ ~~Normaliser les 473 activity_type "unknown"~~ — FAIT : 469/473 corrigés (`enrich_activity_type.py`)
-2. Nettoyer le champ category → supprimer les valeurs parasites (compte entre parenthèses, noms de circuits complets)
-3. Doubler la couverture Wikivoyage : +200 activités authentiques sur Sfax, Bizerte, Tabarka, Ksar Ghilane, Matmata, Djerba médina
+2 ACTIONS RESTANTES :
+1. Nettoyer le champ category → supprimer les valeurs parasites (compte entre parenthèses, noms de circuits complets)
+2. Doubler la couverture Wikivoyage : +200 activités authentiques sur Sfax, Bizerte, Tabarka, Ksar Ghilane, Matmata, Djerba médina
 ```
 
 ---
