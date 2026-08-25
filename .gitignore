@@ -16,5 +16,9 @@ app/.cache/
 evaluation/
 scripts/
 
+app/list_models
+app/list_models.py
+app/test
+app/test.py
 # Wolf / Claude internal
 .wolf/
