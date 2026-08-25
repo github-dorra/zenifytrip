@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libffi-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Installation des dépendances Python
@@ -27,4 +28,4 @@ USER zenify
 EXPOSE 8000
 
 # 2 workers Uvicorn — adapté à 4 vCPU Hetzner CX32
-CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-keep-alive", "120"]
+CMD ["uvicorn", "app.api_server:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-keep-alive", "120"]
