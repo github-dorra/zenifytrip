@@ -3456,7 +3456,7 @@ Résultat mesuré : **100% des 2 345 docs ont `best_season`, `audience`, `budget
 | **`budget_level` renseigné** | **100%** | |
 | **`duration_hours` renseigné** | **100%** | |
 | **`indoor` renseigné** | **100%** | |
-| **`activity_type` renseigné** | **100%** | dont 473 docs "unknown" (20,2%) |
+| **`activity_type` renseigné** | **100%** | dont 4 docs "unknown" (0,2%) — 469/473 corrigés le 2026-08-25 (`enrich_activity_type.py`) |
 | **`is_bookable: True`** | **15,8% (370/2345)** | |
 | **Destinations distinctes** | **69** | |
 | **Activités authentiques** (`wikivoyage`) | 107 docs (4,6%) | |
@@ -3476,12 +3476,14 @@ Résultat mesuré : **100% des 2 345 docs ont `best_season`, `audience`, `budget
 
 | Type | Docs | % |
 |---|---|---|
-| culture | 1 073 | 45,8% |
-| **unknown** | **473** | **20,2%** |
-| nature | 261 | 11,1% |
-| city_experience | 226 | 9,6% |
-| relax | 161 | 6,9% |
-| adventure | 151 | 6,4% |
+| culture | 1 358 | 57,9% |
+| nature | 377 | 16,1% |
+| city_experience | 262 | 11,2% |
+| adventure | 174 | 7,4% |
+| relax | 170 | 7,3% |
+| **unknown** | **4** | **0,2%** |
+
+> Mis à jour le 2026-08-25 après correction par `enrich_activity_type.py` (469 docs corrigés, rule-based keyword inference).
 
 ---
 
@@ -3528,7 +3530,7 @@ Requêtes exécutées contre MongoDB Atlas le 2026-07-27 :
 
 #### Problèmes de qualité identifiés
 
-1. **473 docs avec `activity_type: "unknown"` (20,2%)** — ces docs proviennent majoritairement du scraper TripAdvisor initial dont les catégories n'ont pas pu être mappées vers les 5 types du schéma. Ils fonctionnent dans les requêtes mais reçoivent un scoring moins précis dans `activity_node`.
+1. ~~**473 docs avec `activity_type: "unknown"` (20,2%)**~~ — **✅ RÉSOLU le 2026-08-25** : 469/473 corrigés par `enrich_activity_type.py` (règles keyword FR+EN+termes tunisiens). 4 docs restent à `"unknown"` (0,2%) — aucun signal textuel identifiable.
 
 2. **~24 valeurs `category` parasites** — chaînes avec comptes entre parenthèses (`"Circuits d'une demi-journée (29)"`), noms de circuits complets (`"2-Day Private Sahara Excursion: El Jem..."`), catégories transport (`"Transports publics"`, `"Transport"`, `"4WD & Jeep Tours"`). Le champ `category` ne peut pas être utilisé comme filtre fiable en l'état — seul `activity_type` est fiable.
 
@@ -3554,13 +3556,12 @@ FONCTIONNE DÉJÀ :
 
 INSUFFISANT :
 - Sfax gratuit (3 docs) et 22 autres destinations secondaires sous-couvertes
-- 20,2% activity_type "unknown" → scoring moins précis sur ces docs
 - Champ category trop bruité pour être utilisé comme filtre MongoDB
 - is_bookable 15,8% → revenus agence faibles via ce canal
 - Couche "authenticité locale" (Wikivoyage) = seulement 4,6% — trop mince pour "présenter la Tunisie authentiquement"
 
-3 ACTIONS PRIORITAIRES :
-1. Normaliser les 473 activity_type "unknown" → mapper vers les 5 types existants par règle keyword (même pattern que Phase 5)
+2 ACTIONS RESTANTES (action 1 résolue le 2026-08-25) :
+1. ✅ ~~Normaliser les 473 activity_type "unknown"~~ — FAIT : 469/473 corrigés (`enrich_activity_type.py`)
 2. Nettoyer le champ category → supprimer les valeurs parasites (compte entre parenthèses, noms de circuits complets)
 3. Doubler la couverture Wikivoyage : +200 activités authentiques sur Sfax, Bizerte, Tabarka, Ksar Ghilane, Matmata, Djerba médina
 ```
@@ -3674,9 +3675,9 @@ Cette combinaison est analogue à la stratégie retenue pour `restaurant_collect
 
 R : La fiabilité est garantie structurellement, pas par inspection individuelle. TripAdvisor est une plateforme avec des mécanismes de modération communautaire — les données erronées sont corrigées par les utilisateurs. Pour les champs critiques (GPS, nom), la déduplication et le géocodage complémentaire via Nominatim ont introduit une couche de vérification indépendante. Aucun système de recommandation à cette échelle ne peut vérifier chaque donnée individuellement — la robustesse vient de la diversité des sources et du scoring multicritère (un doc avec un mauvais GPS sera simplement moins bien classé sur la distance, sans planter le système).
 
-**Q : "Pourquoi 20% des documents ont activity_type: unknown — n'est-ce pas un problème de qualité ?"**
+**Q : "Pourquoi certains documents avaient activity_type: unknown — comment avez-vous résolu ce problème ?"**
 
-R : C'est une lacune identifiée et documentée, pas dissimulée. Ces 473 docs ont tous leurs champs contextuels (`best_season`, `audience`, `budget_level`, `indoor`) correctement renseignés — ils participent pleinement au filtrage. Le champ `activity_type` influence le scoring interne de `activity_node` (35% du `user_score`) mais n'exclut pas le document du pool de candidats. En pratique, ces docs recevront un `user_score` de 0.5 par défaut sur cette dimension, ce qui les déclasse légèrement sans les éliminer. La correction est planifiée (action prioritaire n°1) et réalisable en < 2 heures via le même moteur rule-based.
+R : 473 docs (20,2%) issus du scraper TripAdvisor initial avaient `activity_type: "unknown"` car leurs catégories brutes ne correspondaient pas directement aux 5 types du schéma. Ce biais structurel a été corrigé le 2026-08-25 via `enrich_activity_type.py` : un script rule-based déterministe (0 token LLM, même pattern que la Phase 5) appliquant une inférence par comptage de mots-clés FR+EN+termes tunisiens sur `name + description + tags + category`. Résultat : 469/473 docs corrigés (99,2%), seulement 4 restent à "unknown" faute de signal textuel identifiable. La distribution finale est : culture (57,9 %), nature (16,1 %), city_experience (11,2 %), adventure (7,4 %), relax (7,3 %). Ces 469 docs contribuent désormais pleinement à leur 20 % de `user_score` correspondant au type matching.
 
 **Q : "Comment justifiez-vous l'authenticité d'une base alimentée à 87% par TripAdvisor ?"**
 
@@ -4016,7 +4017,7 @@ Les chiffres suivants ont été mesurés à une date précise — vérifier qu'i
 | Chiffre | Date mesure | À revérifier si... |
 |---|---|---|
 | 26 575 documents `restaurant_collection` | 2026-07-23 | Enrichissement complémentaire depuis |
-| 2 345 documents `activities_collection` | 2026-07-27 | Phase de nettoyage `activity_type unknown` effectuée |
+| 2 345 documents `activities_collection` | 2026-07-27 | Volume inchangé — champ `activity_type` corrigé le 2026-08-25 (469/473 unknown → types corrects) |
 | 746 hôtels, 272 vols, 141 bookings | 2026-05-24 | Staging API mis à jour |
 | 8/8 PASS test_e2e.py | 2026-07-30 | Après toute modification de code |
 | 4/4 PASS test_orchestrator.py | 2026-07-31 | Après modification orchestrator_node.py |
