@@ -1,0 +1,75 @@
+version: '3.9'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ZenifyTrip — Stack de déploiement Hetzner CX32 (4 vCPU / 8 GB RAM)
+# Services : app (FastAPI+LangGraph) · redis · nginx
+# LLM : Gemini (primary) → Groq fallback automatique sur quota
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Application principale ─────────────────────────────────────────────────
+  app:
+    build: .
+    container_name: zenify-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      # Cache JSON persistent (hôtels, vols, météo — survit aux redémarrages)
+      - cache_data:/app/app/.cache
+    depends_on:
+      - redis
+    networks:
+      - zenify-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Redis — session + préférences cross-session ────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: zenify-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+    volumes:
+      - redis_data:/data
+    networks:
+      - zenify-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── Reverse proxy Nginx ────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: zenify-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - zenify-net
+
+# ── Volumes persistants ────────────────────────────────────────────────────
+volumes:
+  cache_data:
+  redis_data:
+
+# ── Réseau interne ─────────────────────────────────────────────────────────
+networks:
+  zenify-net:
+    driver: bridge

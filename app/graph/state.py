@@ -115,9 +115,15 @@ class GraphState(TypedDict):
     semantic_cache_key: Optional[str]
 
     # ── Orchestration ────────────────────────────────────────────────────────
-    # → orchestrator_node
+    # → orchestrator_node (LLM hybrid)
     # Ex : ["hotel_node", "activity_node", "restaurant_node"]
-    requested_services:    List[str]
+    requested_services:       List[str]
+    # Contraintes par service — lues par chaque domain node
+    # Ex : {"activity_node": {"max_duration_hours": 2.0, "exclude_activity_ids": [...]},
+    #        "restaurant_node": {"meal_slot": "lunch", "optional_experience": false}}
+    orchestrator_constraints: Optional[Dict[str, Any]]
+    # Trace du raisonnement LLM de l'orchestrateur (debug / rapport)
+    orchestrator_reasoning:   Optional[str]
 
     # ── Candidats par domaine ────────────────────────────────────────────────
     # → hotel_node | flight_node | restaurant_node | activity_node
@@ -236,7 +242,9 @@ def build_initial_state(
         "semantic_cache_key":  None,
 
         # Orchestration + candidats domaine
-        "requested_services":    [],
+        "requested_services":       [],
+        "orchestrator_constraints": None,
+        "orchestrator_reasoning":   None,
         "hotel_candidates":      [],
         "flight_candidates":     [],
         "restaurant_candidates": [],

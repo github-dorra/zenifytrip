@@ -29,31 +29,26 @@ class FinalResponseNode(BaseNode):
             or ""
         )
 
-        merged_context = (
-            state.get("merged_context")
-            or {}
-        )
+        merged_context = state.get("merged_context") or {}
+        intent_result  = state.get("intent_result")  or {}
 
-        constraints = (
-            state.get("intent_result", {}).get("constraints")
-            or {}
-        )
+        constraints = intent_result.get("constraints") or {}
 
         primary_intent = (
             merged_context.get("primary_intent")
-            or state.get("primary_intent")
+            or intent_result.get("primary_intent")
             or "unsupported"
         )
 
         secondary_intents = (
             merged_context.get("secondary_intents")
-            or state.get("secondary_intents")
+            or intent_result.get("secondary_intents")
             or []
         )
 
         action_type = (
             merged_context.get("action_type")
-            or state.get("action_type")
+            or intent_result.get("action_type")
             or "none"
         )
 

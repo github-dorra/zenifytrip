@@ -73,7 +73,20 @@ RESPONSE_CONFIG = NodeConfig(
     cache_enabled=False,
 )
 
-# Agent présentation des recommandations (chemin data_merger → recommendation_response_node)
+# Agent 3 — réponse informative expert (travel_question / booking_question)
+# Prompt spécialisé : données web Tavily (dynamic_factual) + booking + connaissance Tunisie (stable factual)
+INFORMATIVE_RESPONSE_CONFIG = NodeConfig(
+    name="informative_response",
+    node_type="llm_agent",
+    provider="gemini",
+    model=_GEMINI_MODEL,
+    temperature=0.3,
+    max_tokens=1500,
+    response_format="json",
+    cache_enabled=False,
+)
+
+# Agent 2 — présentation des recommandations (chemin data_merger → recommendation_response_node)
 RECOMMENDATION_RESPONSE_CONFIG = NodeConfig(
     name="recommendation_response",
     node_type="llm_agent",
@@ -81,6 +94,17 @@ RECOMMENDATION_RESPONSE_CONFIG = NodeConfig(
     model=_GEMINI_MODEL,
     temperature=0.4,
     max_tokens=3000,
+    response_format="json",
+    cache_enabled=False,
+)
+
+ORCHESTRATOR_CONFIG = NodeConfig(
+    name="orchestrator",
+    node_type="llm_agent",
+    provider="gemini",
+    model=_GEMINI_MODEL,
+    temperature=0.0,
+    max_tokens=600,
     response_format="json",
     cache_enabled=False,
 )

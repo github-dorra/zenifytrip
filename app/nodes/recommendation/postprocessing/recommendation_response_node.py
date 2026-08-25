@@ -117,7 +117,7 @@ class RecommendationResponseNode(BaseNode):
     @staticmethod
     def _zone_key(c: Dict[str, Any]):
         """Clé de diversité (domain, zone) — None si zone inconnue (jamais bloquant)."""
-        zone = c.get("zone") or c.get("neighborhood") or c.get("hotel_zone")
+        zone = c.get("zone_name") or c.get("zone") or c.get("neighborhood") or c.get("hotel_zone")
         return (c.get("domain", ""), str(zone).strip().lower()) if zone else None
 
     def _diversify(self, items: List[Dict], cap: int) -> List[Dict]:

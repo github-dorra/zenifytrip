@@ -7,19 +7,18 @@ from dotenv import load_dotenv
 from google import genai
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://ollama.com")
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY")
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY")                          # optionnel — Ollama local n'a pas besoin d'auth
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")  # localhost si même machine / conteneur Docker
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 # Initialisation des clients — garde contre crash si clé absente
 groq_client   = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-ollama_client = Client(
-    host=OLLAMA_BASE_URL,
-    headers={"Authorization": f"Bearer {OLLAMA_API_KEY}"}
-) if OLLAMA_API_KEY else None
-gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+# Ollama local : pas d'auth requise. Cloud Ollama (optionnel) : définir OLLAMA_API_KEY dans .env.
+_ollama_headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+ollama_client   = Client(host=OLLAMA_BASE_URL, headers=_ollama_headers)
+gemini_client   = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 def call_groq_llm(
@@ -60,7 +59,7 @@ def call_ollama_llm(
     response_format: Optional[Any] = None
 ):
     if not ollama_client:
-        raise ValueError("OLLAMA_API_KEY manquante dans le fichier .env")
+        raise ValueError("Ollama client non initialisé")
     
     kwargs = {
         "model": model,
@@ -159,7 +158,7 @@ def call_llm(
                 response_format=response_format,
             )
         except Exception as e:
-            # Quota épuisé ou clé invalide → fallback Groq automatique
+            # Quota épuisé ou service indisponible → fallback Groq automatique
             if ("429" in str(e) or "quota" in str(e).lower()) and GROQ_API_KEY:
                 import logging
                 logging.getLogger("llm_service").warning(
@@ -173,4 +172,4 @@ def call_llm(
                 )
             raise
 
-    raise ValueError("Provider invalide. Utilise 'groq' ou 'ollama' ou 'gemini'.")
+    raise ValueError("Provider invalide. Utilise 'groq' ou 'gemini'.")

@@ -25,6 +25,7 @@ from app.nodes.recommendation.postprocessing.recommendation_response_node import
 from app.nodes.recommendation.postprocessing.day_planner_node import DayPlannerNode
 from app.nodes.recommendation.postprocessing.day_skeleton_node import DaySkeletonNode
 from app.nodes.conversation.information_node import InformationNode, _WEATHER_KW
+from app.nodes.conversation.informative_response_node import InformativeResponseNode
 from app.nodes.shared.feedback_logger_node import FeedbackLoggerNode
 from app.nodes.user_profile.profile_writer_node import ProfileWriterNode
 
@@ -47,6 +48,32 @@ SKELETON_INTENTS = {"day_planning", "trip_package_recommendation", "activity_rec
 
 # Intents dont le feedback doit passer par Phase 5 avant réponse
 LEARNING_INTENTS = {"feedback", "profile_update"}
+
+
+# Mots-clés indiquant que le message parle d'une RÉSERVATION PERSONNELLE du voyageur.
+# Si l'intent_classifier classe ces messages en travel_question (mauvaise clasif LLM),
+# on force quand même availability_checker pour charger trip_is_ongoing / booking_anchors.
+_BOOKING_FORCE_KW = frozenset({
+    "mon vol", "mon hôtel", "mon hotel", "ma chambre",
+    "ma réservation", "check-in", "mon billet", "ma résa",
+    "heure de vol", "heure du vol", "décollage", "atterrissage",
+    "numéro de vol", "vol retour", "vol aller",
+})
+
+
+def route_after_context_merge(state: GraphState) -> str:
+    """
+    Saute availability_checker pour travel_question PURE (pas de données booking nécessaires).
+    Garde availability_checker pour booking_question et pour les travel_question contenant
+    des mots-clés de réservation personnelle (guard contre mauvaise classification LLM).
+    """
+    primary_intent = (state.get("intent_result") or {}).get("primary_intent", "unsupported")
+    if primary_intent == "travel_question":
+        msg = (state.get("normalized_message") or state.get("user_message") or "").lower()
+        if any(kw in msg for kw in _BOOKING_FORCE_KW):
+            return "availability_checker"   # "mon vol…" → besoin des données API booking
+        return "clarification_checker"      # factuel pur → on saute availability_checker
+    return "availability_checker"
 
 
 def route_after_clarification_checker(state: GraphState) -> str:
@@ -138,7 +165,7 @@ def build_graph():
     graph.add_node("semantic_node", SemanticAgentNode()) # [LLM]  Gemini 2.0 Flash — extrait semantic_keywords + tags depuis merged_context
 
     # ── PHASE 3 : ORCHESTRATION ───────────────────────────────────────────────
-    graph.add_node("orchestrator", OrchestratorNode())   # [tech] Python pur (SANS LLM) — mappe primary_intent → requested_services
+    graph.add_node("orchestrator", OrchestratorNode())   # [LLM]  Gemini 3.1 Flash Lite — hybrid (règles 80% + LLM si voyage actif/repas inclus/dernier jour)
 
     # ── PHASE 4 : DOMAINES — fan-out conditionnel ────────────────────────────
     graph.add_node("hotel_node",      HotelNode())        # [tech] API interne Tier1 (hotel-services) + Tier2 (catalogue 746 hôtels), haversine
@@ -153,7 +180,8 @@ def build_graph():
     graph.add_node("day_planner",          DayPlannerNode())          # [LLM]  Gemini 2.0 Flash — itinéraire contextualisé (anchors, trip_position, météo)
 
     # ── PIPELINE INFORMATIF (travel_question / booking_question) ─────────────
-    graph.add_node("information_node", InformationNode())  # [tech] rule-based → subtype détecté, resolved_data assemblé (0 LLM)
+    graph.add_node("information_node",      InformationNode())         # [tech] rule-based → subtype détecté, resolved_data assemblé (0 LLM)
+    graph.add_node("informative_response",  InformativeResponseNode()) # [LLM]  Agent 3 : réponse experte (visa/prix/booking/factuel stable)
 
     # ── RÉPONSE — 2 agents LLM distincts selon le chemin ─────────────────────
     graph.add_node("final_response",          FinalResponseNode())          # [LLM]  Gemini 2.0 Flash — Agent 1 : clarification / info / greeting
@@ -179,8 +207,16 @@ def build_graph():
     graph.add_edge("intent_classifier", "context_merge")
     graph.add_edge("profile_loader",    "context_merge")
 
-    # availability_checker APRÈS context_merge, AVANT clarification_checker
-    graph.add_edge("context_merge",        "availability_checker")
+    # travel_question → saute availability_checker (économise ~2.4s d'appel API inutile)
+    # tout le reste → availability_checker → clarification_checker
+    graph.add_conditional_edges(
+        "context_merge",
+        route_after_context_merge,
+        {
+            "clarification_checker": "clarification_checker",
+            "availability_checker":  "availability_checker",
+        },
+    )
     graph.add_edge("availability_checker", "clarification_checker")
 
     # Routage : clarification → final_response | information_node | pipeline recommandation
@@ -196,8 +232,9 @@ def build_graph():
             "feedback_path":    "feedback_logger",  # feedback/profile_update → Phase 5
         },
     )
-    graph.add_edge("day_skeleton",       "weather_node")
-    graph.add_edge("information_node",   "final_response")
+    graph.add_edge("day_skeleton",         "weather_node")
+    graph.add_edge("information_node",     "informative_response")
+    graph.add_edge("informative_response", END)
 
     # ── EDGES PHASE 2 ────────────────────────────────────────────────────────
     graph.add_conditional_edges(

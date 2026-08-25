@@ -10,6 +10,14 @@ _BUDGET_PRICE_LEVEL: Dict[str, int] = {
     # luxury | premium : pas de plafond → absent du dict, tous candidats passent
 }
 
+# Conversion price_level string ("$" … "$$$$") → entier 1–4
+_PRICE_LEVEL_STR_TO_INT: Dict[str, int] = {
+    "$":    1,
+    "$$":   2,
+    "$$$":  3,
+    "$$$$": 4,
+}
+
 # Budget → adult_price max autorisé (activités, en TND)
 _BUDGET_MAX_ACTIVITY_TND: Dict[str, float] = {
     "low":    60.0,
@@ -81,7 +89,14 @@ class ConstraintValidatorNode(BaseNode):
                 ceiling = _BUDGET_PRICE_LEVEL.get(budget_level)
                 if ceiling is not None:
                     pl = c.get("price_level")
-                    if pl is not None and int(pl) > ceiling:
+                    if pl is not None:
+                        # price_level peut être un entier (Google Places) ou une string ("$"…"$$$$")
+                        pl_int = _PRICE_LEVEL_STR_TO_INT.get(str(pl).strip(), None) if isinstance(pl, str) else None
+                        try:
+                            pl_int = pl_int if pl_int is not None else int(pl)
+                        except (ValueError, TypeError):
+                            pl_int = None
+                    if pl is not None and pl_int is not None and pl_int > ceiling:
                         removed["budget_restaurant"] += 1
                         continue
 

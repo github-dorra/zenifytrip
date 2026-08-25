@@ -104,6 +104,11 @@ AVAILABILITY_UNKNOWN_FACTOR_OPEN      = float(os.getenv("AVAILABILITY_UNKNOWN_FA
 # --- Seuil de basculement Tier 1 (Mongo) -> Tier 2 (Google Places) restaurant_service.py
 RESTAURANT_MONGO_MIN_RESULTS = int(os.getenv("RESTAURANT_MONGO_MIN_RESULTS", "3"))
 
+# --- Hotel pool — nombre max de candidats transmis au ranking (avant coupe finale)
+# Augmenté de 5 → 12 pour aligner sur activity_node (MAX_FINAL=12) et restaurant (10-15),
+# et permettre au ranking V2 de comparer un pool plus large avant présentation.
+HOTEL_MAX_CANDIDATES = int(os.getenv("HOTEL_MAX_CANDIDATES", "12"))
+
 # --- Restaurant scoring — proximity
 # Distance à partir de laquelle le proximity_score atteint son plancher (0.1).
 # À 0 km → 1.0 ; décroissance linéaire jusqu'à ce seuil.

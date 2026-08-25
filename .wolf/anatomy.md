@@ -1,7 +1,15 @@
 # Project Anatomy — ZenifyTrip
 
-## Entry Point
+## Entry Points
 - `app/main.py` — boucle CLI, streaming LangGraph, SessionManager, conversation_history
+- `app/api.py` — FastAPI web server (POST /chat, GET /health) — pour déploiement Docker
+
+## Deployment
+- `Dockerfile` — image python:3.13-slim, uvicorn 2 workers
+- `docker-compose.yml` — stack: app + ollama + redis + nginx (Hetzner CX32)
+- `nginx/default.conf` — reverse proxy port 80, timeout 120s
+- `.env.example` — template variables d'environnement
+- `deploy.sh` — script déploiement Ubuntu 22.04 step-by-step
 
 ## Graph
 - `app/graph/builder.py` — topologie complète, routing functions, RECOMMENDATION_INTENTS, INFORMATIVE_INTENTS

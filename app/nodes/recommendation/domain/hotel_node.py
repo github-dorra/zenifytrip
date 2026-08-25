@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from app.nodes.core.Base_node import BaseNode, NodeConfig
 from app.services.hotel_service import HotelService
 from app.data.tunisia_destinations import city_to_iata, get_airport_coords
-from app.config.settings import USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT
+from app.config.settings import USER_SCORE_WEIGHT, BUSINESS_SCORE_WEIGHT, HOTEL_MAX_CANDIDATES
 
 logger = logging.getLogger(__name__)
 
@@ -151,14 +151,14 @@ class HotelNode(BaseNode):
         # --------------------------------------------------
         all_candidates = tier1_candidates + tier2_candidates
         all_candidates.sort(key=lambda x: x["user_score"], reverse=True)
-        top5 = all_candidates[:5]
+        top_n = all_candidates[:HOTEL_MAX_CANDIDATES]
 
         logger.info(
             f"HotelNode: {len(tier1_candidates)} partenaires + "
-            f"{len(tier2_candidates)} catalogue → top {len(top5)}"
+            f"{len(tier2_candidates)} catalogue → top {len(top_n)}"
         )
 
-        return {"hotel_candidates": top5}
+        return {"hotel_candidates": top_n}
 
     # =========================================================
     # BUILD CANDIDATES — filtrage + enrichissement + scoring

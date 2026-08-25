@@ -70,15 +70,24 @@ class ActivityNode(BaseNode):
         )
         beach_score = float(insights.get("beach_score") or 0)
 
+        # Contraintes de l'orchestrateur (chemin LLM) — lues ici, appliquées dans run()
+        orch = (state.get("orchestrator_constraints") or {}).get("activity_node") or {}
+
         return {
-            "traveller_id":      str(traveller_id) if traveller_id else "",
-            "destination":       destination,
-            "all_keywords":      all_keywords,
-            "budget_level":      budget_level,
-            "traveler_type":     traveler_type,
-            "start_date":        start_date,
-            "indoor_preference": indoor_preference,
-            "beach_score":       beach_score,
+            "traveller_id":          str(traveller_id) if traveller_id else "",
+            "destination":           destination,
+            "all_keywords":          all_keywords,
+            "budget_level":          budget_level,
+            "traveler_type":         traveler_type,
+            "start_date":            start_date,
+            "indoor_preference":     indoor_preference,
+            "beach_score":           beach_score,
+            # Champs injectés par l'orchestrateur (None si chemin règles)
+            "orch_max_duration_h":   orch.get("max_duration_hours"),
+            "orch_exclude_ids":      orch.get("exclude_activity_ids") or [],
+            "orch_exclude_types":    orch.get("exclude_types") or [],
+            "orch_nearby_hotel":     bool(orch.get("nearby_hotel", False)),
+            "orch_is_today":         bool(orch.get("is_today", False)),
         }
 
     @staticmethod
@@ -168,6 +177,11 @@ class ActivityNode(BaseNode):
         indoor_preference = params["indoor_preference"]
         beach_score       = params["beach_score"]
 
+        # Contraintes orchestrateur (LLM path)
+        orch_max_h      = params["orch_max_duration_h"]
+        orch_excl_ids   = set(str(x) for x in params["orch_exclude_ids"])
+        orch_excl_types = set(params["orch_exclude_types"])
+
         self.logger.info(
             f"[ActivityNode] destination={destination!r} | "
             f"keywords={all_kws} | indoor={indoor_preference} | beach={beach_score:.2f} | "
@@ -228,6 +242,21 @@ class ActivityNode(BaseNode):
 
         # ── Déduplication + fusion ─────────────────────────────────────
         merged = self._dedup(source1_result, source2_result)
+
+        # ── Filtres orchestrateur (appliqués AVANT ranking) ───────────
+        if orch_excl_ids:
+            merged = [c for c in merged if str(c.get("candidate_id") or "") not in orch_excl_ids]
+        if orch_excl_types:
+            merged = [c for c in merged if (c.get("activity_type") or "") not in orch_excl_types]
+        if orch_max_h is not None:
+            try:
+                max_h = float(orch_max_h)
+                merged = [
+                    c for c in merged
+                    if (c.get("duration_hours") or 0) <= max_h or c.get("duration_hours") is None
+                ]
+            except (TypeError, ValueError):
+                pass
 
         # ── Tri final par score ────────────────────────────────────────
         # True (confirmé) > None (inconnu) > False (indisponible — exclu au ranking)

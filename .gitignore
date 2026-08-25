@@ -1,18 +1,20 @@
 .env
 __pycache__/
+**/__pycache__/
+venv1/
 .venv/
-.venv1/
 *.pyc
-node_modules
-.claude
-
-
-test_weather.py
-app/test.py
-app/test_ollama.py
-
-# Claude Code internal
+*.pyo
+node_modules/
+.claude/
 skills-lock.json
 
-# Runtime cache (généré automatiquement — pas de valeur à versionner)
+# Runtime cache
 app/.cache/
+
+# Fichiers locaux
+evaluation/
+scripts/
+
+# Wolf / Claude internal
+.wolf/

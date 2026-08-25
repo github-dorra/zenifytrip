@@ -129,7 +129,26 @@ de l'app. ~4.5 GB RAM, CPU-only sur CX32, ~8-12s par requête — acceptable com
 - Interpolation [WEATHER_FACTOR_MIN=0.70, 1.0] — jamais éliminatoire
 - Formule : ranked_score = user_score × business_boost × avail_factor × weather_factor
 
+## ✅ information_node — Refactoring dynamic_factual (2026-08-19)
+Suppression du sous-type `factual` ; `dynamic_factual` devient le défaut universel pour toute question non classifiée.
+
+### Modifications code
+- `information_node.py` — suppression `_DYNAMIC_KW` + suppression sous-type `factual` ; tout ce qui ne matche pas les 4 frozensets explicites tombe en `dynamic_factual` (Tavily first, fallback LLM + caveat si no-key/timeout)
+- `information_node.py` — `"plage"` retiré de `_WEATHER_KW` (faux positif : "quelle plage à Monastir ?" tombait en `weather` au lieu de `dynamic_factual`)
+- `test_information_pipeline.py` — créé (22/22 PASS : 17 routage + 5 LLM)
+
+### Résultats tests
+- Phase 1 Routage : **17/17 PASS** — mosquées/musée/plage/marchander/vestimentaire → `dynamic_factual`
+- Phase 2 LLM : **5/5 PASS** — Agent 3 Gemini, réponses sourcées, précises, multilingue (arabe validé)
+- Commits : `7a4265d` (code + tests), `c74e823` (CLAUDE.md VERSION 10)
+
+## ✅ CLAUDE.md nettoyé (2026-08-19)
+Suppression de toutes les notes de bugs intermédiaires — seuls les résultats finaux conservés.
+- Supprimé : blocs "Bugs corrigés" VERSION 1, 2, 3, 5
+- Réduit : VERSION 7 (9 sections A→K → 2 lignes de résumé)
+- Supprimé : "Restant après VERSION 6", "Bugs Connus / TODO", liste "9 bugs catégorisés" PFE
+- Commit : `197fe15` (–170 lignes)
+
 ## 🚀 Prochaine quête
-- Finalisation rapport PFE
-- Tests E2E complets (8 scénarios) pour valider la chaîne scoring corrigée
-- Tester "quel est le prix d'entrée au Bardo ?" (dynamic_factual + Tavily si TAVILY_API_KEY configurée)
+- Finalisation rapport PFE (chapitres 1, 2, 8 à rédiger)
+- Tests E2E complets (8 scénarios) pour valider la chaîne scoring V2
